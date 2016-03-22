@@ -1,8 +1,11 @@
 package paquete;
 
 public class HiloRecibir extends Thread {
-	public HiloRecibir(){
+	Router router;
+	
+	public HiloRecibir(Router router){
 		super("Router recibiendo datos");
+		this.router = router;
 	}
 	
 	public void run(){
