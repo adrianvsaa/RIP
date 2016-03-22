@@ -2,7 +2,6 @@ package paquete;
 
 import java.io.File;
 import java.io.FileNotFoundException;
-import java.io.IOException;
 import java.net.DatagramPacket;
 import java.net.DatagramSocket;
 import java.net.InetAddress;
@@ -72,7 +71,7 @@ public class Router {
 			recibir.start();
 	}
 	
-	public void actualizarTabla(){
+	public void actualizarTabla(byte[] datos){
 		
 	}
 	

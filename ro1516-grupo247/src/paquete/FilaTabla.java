@@ -1,6 +1,6 @@
 package paquete;
 
-import java.net.InetAddress;
+//Falta añadir mascara de subred
 
 public class FilaTabla {
 	private String direccionDestino;
