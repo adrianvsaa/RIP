@@ -106,4 +106,8 @@ public class Router {
 		return new DatagramPacket(paquete, paquete.length);
 	}
 	
+	public DatagramSocket getSocket(){
+		return this.socket;
+	}
+	
 }
