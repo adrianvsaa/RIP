@@ -4,19 +4,23 @@ import java.io.File;
 import java.io.FileNotFoundException;
 import java.net.DatagramPacket;
 import java.net.DatagramSocket;
+import java.net.Inet4Address;
 import java.net.InetAddress;
+import java.net.NetworkInterface;
 import java.net.SocketException;
 import java.net.UnknownHostException;
+import java.util.Enumeration;
 import java.util.LinkedHashMap;
 import java.util.Scanner;
 import java.util.Set;
 
 public class Router {
+	private InetAddress direccion;
 	private String direccionLocal;
 	private LinkedHashMap<String, FilaTabla> tablaEncaminamiento;
 	private File ficheroConf;
 	private int puerto;
-	private DatagramSocket socket;
+	//private DatagramSocket socket;
 	
 	public Router(){
 		this(5512);
@@ -24,20 +28,32 @@ public class Router {
 	
 	public Router(int puerto){
 		try {
-			direccionLocal = InetAddress.getLocalHost().toString().trim().split("/")[1];
+			NetworkInterface eth = NetworkInterface.getByName("eth0");
+			Enumeration<InetAddress> direcciones = eth.getInetAddresses();
+			direccion = direcciones.nextElement();
+			while(direcciones.hasMoreElements()){
+				if(direccion instanceof Inet4Address & !direccion.isLoopbackAddress()){
+					break;
+				}
+				direccion = direcciones.nextElement();
+			}
+			direccionLocal = direccion.toString().split("/")[1];
 			ficheroConf = new File("ripconf-"+direccionLocal+".topo");
-		} catch (UnknownHostException e) {
+		} catch (Exception e) {
 			System.err.println("Error en la captura de la direccion IP");
+			//Este bloque try-catch es para que funcione en windows ya que no hay una interfaz de red que se llame eth0
+			try{
+				direccion = InetAddress.getLocalHost();
+				direccionLocal = direccion.toString().split("/")[1];		
+				ficheroConf = new File("ripconf-"+direccionLocal+".topo");
+			} catch(Exception eb){
+				System.err.println("Error");
+			}
 		}
 		tablaEncaminamiento = new LinkedHashMap<String, FilaTabla>();
 		this.puerto = puerto;
-		try {
-			socket = new DatagramSocket(this.puerto);
-		} catch (SocketException e) {
-			System.err.println("Error en la apertura de socket");
-			System.exit(0);
-		}
 		leerFichero();
+		imprimirTabla();
 	}
 	
 	private void leerFichero(){
@@ -46,10 +62,14 @@ public class Router {
 			while(entrada.hasNextLine()){
 				String aux = entrada.nextLine();
 				if(aux.trim().split("/").length>1){
-					tablaEncaminamiento.put(aux.trim().split("/")[0], new FilaTabla(aux.trim().split("/")[0], 0, null, 0));
+					tablaEncaminamiento.put(aux.trim().split("/")[0], new FilaTabla(aux.trim().split("/")[0], 0, "-\t", 0, aux.trim().split("/")[1]));
+				}
+				else if(aux.trim().split(":").length>1){
+					tablaEncaminamiento.put(aux.trim().split(":")[0], new FilaTabla(aux.trim().split(":")[0], 1, aux.trim().split(":")[0],
+							Integer.parseInt(aux.trim().split(":")[1]), "0"));
 				}
 				else{
-					
+					tablaEncaminamiento.put(aux.trim(), new FilaTabla(aux.trim(), 1, aux.trim(), 5512, "0"));
 				}
 			}
 			entrada.close();
@@ -81,32 +101,60 @@ public class Router {
 	 * @return
 	 */
 	
-	public DatagramPacket getPaquete(){
+	public byte[] getPaquete(){
 		byte[] cabecera = new byte[3];	//Los bytes 2 y 3 son bytes sin uso
 		cabecera[0] = (byte) 0;			//El 1º byte va a ser un 0 porque es una respuesta
 		cabecera[1] = (byte) 2;			//El 2º byte va a ser un 2 por la versión
 		//byte[] cabecera = {(byte) 0, (byte) 2, (byte) 0, (byte) 0}; Similar a lo de arriba pero en un paso
-		byte[] entradas = new byte[tablaEncaminamiento.size()*4-1];
+		if(tablaEncaminamiento.size()==0)
+			return null;
+		byte[] entradas = new byte[tablaEncaminamiento.size()*4*5];
 		Set<String> ips = tablaEncaminamiento.keySet();
 		int i=0;
 		for(String key: ips){
-			entradas[i] = Byte.parseByte(key);
-			i++;
-			entradas[i] = 0; //Falta incorporar mascara de la subred de destino
-			i++;
-			entradas[i] = Byte.parseByte(tablaEncaminamiento.get(key).getNextHop());
-			i++;
-			entradas[i] = (byte) tablaEncaminamiento.get(key).getNumeroSaltos();
-			i++;
+			try {
+				byte[] dirDestino = InetAddress.getByName(key).getAddress();
+				System.arraycopy(dirDestino, 0, entradas, i, dirDestino.length);
+				i += 4;
+			} catch (UnknownHostException e) {
+				System.err.println("Error en bytes direccion destino");
+			}
+			//Hay que meter los 4 bytes correspondientes a la mascara de subred
+			
+			 i += 4;
+			try{
+				byte[] dirNextHop = InetAddress.getByName(tablaEncaminamiento.get(key).getNextHop()).getAddress();
+				System.arraycopy(dirNextHop, 0, entradas, i, dirNextHop.length);
+				i += 4;
+			} catch(UnknownHostException e){
+				System.err.println("Error en bytes direccion siguiente salto");
+			}
+			//Falta metrica en bytes
+			byte metric = (byte) tablaEncaminamiento.get(key).getNumeroSaltos();
+			System.arraycopy(metric, 0, entradas, i+3, 1);
+			i += 4;
+			
 		}
 		byte[] paquete = new byte[cabecera.length+entradas.length];
 		System.arraycopy(cabecera, 0, paquete, 0, cabecera.length);
 		System.arraycopy(entradas, 0, paquete, cabecera.length, entradas.length);
-		return new DatagramPacket(paquete, paquete.length);
+		return null;
 	}
 	
-	public DatagramSocket getSocket(){
-		return this.socket;
+	public int getPuerto(){
+		return this.puerto;
+	}
+	
+	public LinkedHashMap<String, FilaTabla> getTabla(){
+		return this.tablaEncaminamiento;
+	}
+
+	public void imprimirTabla(){
+		System.out.println("Direccion Destino\tSaltos\tNext Hop\tPuerto");
+		Set<String> keys = tablaEncaminamiento.keySet();
+		for(String key:keys){
+			System.out.println(tablaEncaminamiento.get(key));
+		}
 	}
 	
 }
