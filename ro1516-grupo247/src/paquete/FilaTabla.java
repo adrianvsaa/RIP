@@ -58,6 +58,10 @@ public class FilaTabla {
 		return this.mascaraSubRed;
 	}
 	
+	public int getMascara(){
+		return Integer.parseInt(this.mascaraSubRed);
+	}
+	
 	public String toString(){
 		return direccionDestino+"\t\t"+numeroSaltos+"\t"+nextHop+"\t"+puertoEnvio;
 	}

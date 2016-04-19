@@ -112,6 +112,7 @@ public class Router {
 		Set<String> ips = tablaEncaminamiento.keySet();
 		int i=0;
 		for(String key: ips){
+			//Ip destino
 			try {
 				byte[] dirDestino = InetAddress.getByName(key).getAddress();
 				System.arraycopy(dirDestino, 0, entradas, i, dirDestino.length);
@@ -119,8 +120,36 @@ public class Router {
 			} catch (UnknownHostException e) {
 				System.err.println("Error en bytes direccion destino");
 			}
-			//Hay que meter los 4 bytes correspondientes a la mascara de subred
+			//Mascara
+			String mascara="";
+			int x,d=1;
+			for(x=0; x<tablaEncaminamiento.get(key).getMascara()/8; x++){
+				mascara += "255";
+				if(x<3)
+					mascara+= ".";
+			}
+			if(tablaEncaminamiento.get(key).getMascara()/8<4){
+				for(int j=0; j<tablaEncaminamiento.get(key).getMascara()-x*8; j++){
+					d = d*2;
+				}
+				d -=1;
+				mascara += d;
+				d = 1;
+				while(tablaEncaminamiento.get(key).getMascara()/8+d<4){
+					mascara += ".0";
+					d++;
+				}
+			}
+			try {
+				InetAddress mascaraIP = InetAddress.getByName(mascara);
+				byte[] mas = mascaraIP.getAddress();
+				System.arraycopy(mas, 0, entradas, i, mas.length);
+			} catch (UnknownHostException e1) {
+				System.err.println("Error en bytes mascara");
+			}
 			
+			
+			//IP siguiente salto;
 			 i += 4;
 			try{
 				byte[] dirNextHop = InetAddress.getByName(tablaEncaminamiento.get(key).getNextHop()).getAddress();
