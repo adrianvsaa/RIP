@@ -6,39 +6,34 @@ import java.net.UnknownHostException;
 //Falta añadir mascara de subred
 
 public class FilaTabla {
-	private String direccionDestino;
-	private InetAddress direccion;
+	private InetAddress direccionDestino;
 	private int numeroSaltos;
-	private String nextHop;
-	private int puertoEnvio;
+	private InetAddress nextHop;
 	public String mascaraSubRed;
 	
-	public FilaTabla(String direccionDestino, int numeroSaltos, String nextHop, int puertoEnvio, String mascaraSubRed){
-		this.direccionDestino = direccionDestino;
+	public FilaTabla(String direccionDestino, int numeroSaltos, String nextHop, String mascaraSubRed){
 		try {
-			direccion = InetAddress.getByName(direccionDestino);
+			this.direccionDestino = InetAddress.getByName(direccionDestino);
+			this.nextHop = InetAddress.getByName(nextHop);
 		} catch (UnknownHostException e) {
 			System.err.println("Error en Direccion destino");
 		}
 		this.numeroSaltos = numeroSaltos;
-		this.nextHop = nextHop;
-		this.puertoEnvio = puertoEnvio;
 		this.mascaraSubRed = mascaraSubRed;
 	}
 	
 	public void actualizarInformacion(int numeroSaltos, String nextHop, int puertoEnvio){
 		if(this.numeroSaltos>numeroSaltos){
 			this.numeroSaltos = numeroSaltos;
-			this.nextHop = nextHop;
-			this.puertoEnvio = puertoEnvio;
+			try{
+			this.nextHop = InetAddress.getByName(nextHop);
+			}catch(UnknownHostException e){
+				System.err.println("Error actualizar información");
+			}
 		}
 	}
 	
-	public InetAddress getDireccion(){
-		return this.direccion;
-	}
-	
-	public String getDireccionDestino(){
+	public InetAddress getDireccionDestino(){
 		return this.direccionDestino;
 	}
 	
@@ -46,11 +41,8 @@ public class FilaTabla {
 		return this.numeroSaltos;
 	}
 	
-	public int getPuerto(){
-		return this.puertoEnvio;
-	}
 	
-	public String getNextHop(){
+	public InetAddress getNextHop(){
 		return this.nextHop;
 	}
 	
@@ -63,6 +55,6 @@ public class FilaTabla {
 	}
 	
 	public String toString(){
-		return direccionDestino+"\t\t"+numeroSaltos+"\t"+nextHop+"\t"+puertoEnvio;
+		return direccionDestino+"\t\t"+numeroSaltos+"\t"+nextHop;
 	}
 }

@@ -2,6 +2,7 @@ package paquete;
 
 import java.io.File;
 import java.io.FileNotFoundException;
+import java.io.IOException;
 import java.net.DatagramPacket;
 import java.net.DatagramSocket;
 import java.net.Inet4Address;
@@ -13,14 +14,16 @@ import java.util.Enumeration;
 import java.util.LinkedHashMap;
 import java.util.Scanner;
 import java.util.Set;
+import java.util.Timer;
+import java.util.TimerTask;
 
 public class Router {
-	private InetAddress direccion;
-	private String direccionLocal;
+	private InetAddress direccionLocal;
 	private LinkedHashMap<String, FilaTabla> tablaEncaminamiento;
 	private File ficheroConf;
 	private int puerto;
-	//private DatagramSocket socket;
+	private LinkedHashMap<InetAddress,Integer> vecinos;
+	private DatagramSocket socket;
 	
 	public Router(){
 		this(5512);
@@ -30,27 +33,31 @@ public class Router {
 		try {
 			NetworkInterface eth = NetworkInterface.getByName("eth0");
 			Enumeration<InetAddress> direcciones = eth.getInetAddresses();
-			direccion = direcciones.nextElement();
+			direccionLocal = direcciones.nextElement();
 			while(direcciones.hasMoreElements()){
-				if(direccion instanceof Inet4Address & !direccion.isLoopbackAddress()){
+				if(direccionLocal instanceof Inet4Address & !direccionLocal.isLoopbackAddress()){
 					break;
 				}
-				direccion = direcciones.nextElement();
+				direccionLocal = direcciones.nextElement();
 			}
-			direccionLocal = direccion.toString().split("/")[1];
 			ficheroConf = new File("ripconf-"+direccionLocal+".topo");
 		} catch (Exception e) {
 			System.err.println("Error en la captura de la direccion IP");
 			//Este bloque try-catch es para que funcione en windows ya que no hay una interfaz de red que se llame eth0
 			try{
-				direccion = InetAddress.getLocalHost();
-				direccionLocal = direccion.toString().split("/")[1];		
+				direccionLocal = InetAddress.getLocalHost();	
 				ficheroConf = new File("ripconf-"+direccionLocal+".topo");
 			} catch(Exception eb){
 				System.err.println("Error");
 			}
 		}
 		tablaEncaminamiento = new LinkedHashMap<String, FilaTabla>();
+		vecinos = new LinkedHashMap<InetAddress, Integer>();
+		try {
+			socket = new DatagramSocket(puerto);
+		} catch (SocketException e) {
+			System.err.println("Error en socket");
+		}
 		this.puerto = puerto;
 		leerFichero();
 		imprimirTabla();
@@ -62,14 +69,21 @@ public class Router {
 			while(entrada.hasNextLine()){
 				String aux = entrada.nextLine();
 				if(aux.trim().split("/").length>1){
-					tablaEncaminamiento.put(aux.trim().split("/")[0], new FilaTabla(aux.trim().split("/")[0], 0, "-\t", 0, aux.trim().split("/")[1]));
+					tablaEncaminamiento.put(aux.trim().split("/")[0], new FilaTabla(aux.trim().split("/")[0], 0, "-\t", aux.trim().split("/")[1]));
 				}
 				else if(aux.trim().split(":").length>1){
-					tablaEncaminamiento.put(aux.trim().split(":")[0], new FilaTabla(aux.trim().split(":")[0], 1, aux.trim().split(":")[0],
-							Integer.parseInt(aux.trim().split(":")[1]), "0"));
+					try{
+						vecinos.put(InetAddress.getByName(aux.trim().split(":")[0]), Integer.parseInt(aux.trim().split(":")[1]));
+					}catch(UnknownHostException e){
+						System.err.println("Error leer fichero direccion vecinos");
+					}
 				}
 				else{
-					tablaEncaminamiento.put(aux.trim(), new FilaTabla(aux.trim(), 1, aux.trim(), 5512, "0"));
+					try{
+						vecinos.put(InetAddress.getByName(aux.trim().split(":")[0]), 5512);
+					}catch(UnknownHostException e){
+						System.err.println("Error leer fichero direccion vecinos");
+					}
 				}
 			}
 			entrada.close();
@@ -84,11 +98,31 @@ public class Router {
 	 * las tablas de otros routers y los procesa
 	 */
 	
-	public void startService(){
-			Thread enviar = new HiloEnviar(this);
-			enviar.start();
-			Thread recibir = new HiloRecibir(this);
-			recibir.start();
+	public void start(){
+		byte[] datosRecibidos = new byte[25*5*4+4];
+		DatagramPacket paqueteRecibido = new DatagramPacket(datosRecibidos, datosRecibidos.length);
+		TimerTask tarea = new TimerTask(){
+			public void run(){
+				try{
+					Set<InetAddress> keys =  vecinos.keySet();
+					for(InetAddress key : keys){
+						DatagramPacket paqueteEnvio = new DatagramPacket(getPaquete(), getPaquete().length, key, vecinos.get(key));
+						socket.send(paqueteEnvio);
+					}
+					while(true){
+						socket.receive(paqueteRecibido);
+						actualizarTabla(paqueteRecibido.getData());
+					}
+				}catch(IOException io){
+					System.err.println("Error en E/S de datos");
+					System.exit(0);
+				}
+			}
+		};
+		Timer t = new Timer();
+		t.schedule(tarea, 0, 30*1000);		//Metodo que ejecuta tarea desde 0 milisegundos con un periodo de 30 segundos	
+		
+		
 	}
 	
 	public void actualizarTabla(byte[] datos){
@@ -150,14 +184,10 @@ public class Router {
 			
 			
 			//IP siguiente salto;
-			 i += 4;
-			try{
-				byte[] dirNextHop = InetAddress.getByName(tablaEncaminamiento.get(key).getNextHop()).getAddress();
-				System.arraycopy(dirNextHop, 0, entradas, i, dirNextHop.length);
-				i += 4;
-			} catch(UnknownHostException e){
-				System.err.println("Error en bytes direccion siguiente salto");
-			}
+			i += 4;
+			byte[] dirNextHop = tablaEncaminamiento.get(key).getNextHop().getAddress();
+			System.arraycopy(dirNextHop, 0, entradas, i, dirNextHop.length);
+			i += 4;
 			//Falta metrica en bytes
 			byte metric = (byte) tablaEncaminamiento.get(key).getNumeroSaltos();
 			System.arraycopy(metric, 0, entradas, i+3, 1);
