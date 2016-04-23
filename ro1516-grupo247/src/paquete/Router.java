@@ -9,13 +9,13 @@ import java.net.Inet4Address;
 import java.net.InetAddress;
 import java.net.NetworkInterface;
 import java.net.SocketException;
+import java.net.SocketTimeoutException;
 import java.net.UnknownHostException;
+import java.util.Calendar;
 import java.util.Enumeration;
 import java.util.LinkedHashMap;
 import java.util.Scanner;
 import java.util.Set;
-import java.util.Timer;
-import java.util.TimerTask;
 
 public class Router {
 	private InetAddress direccionLocal;
@@ -101,32 +101,34 @@ public class Router {
 	public void start(){
 		byte[] datosRecibidos = new byte[25*5*4+4];
 		DatagramPacket paqueteRecibido = new DatagramPacket(datosRecibidos, datosRecibidos.length);
-		TimerTask tarea = new TimerTask(){
-			public void run(){
-				try{
-					Set<InetAddress> keys =  vecinos.keySet();
-					for(InetAddress key : keys){
-						DatagramPacket paqueteEnvio = new DatagramPacket(getPaquete(), getPaquete().length, key, vecinos.get(key));
-						socket.send(paqueteEnvio);
-					}
-					while(true){
-						socket.receive(paqueteRecibido);
-						actualizarTabla(paqueteRecibido.getData());
-					}
-				}catch(IOException io){
-					System.err.println("Error en E/S de datos");
-					System.exit(0);
+		Calendar a = Calendar.getInstance();
+		while(true){
+			try {
+				this.socket.setSoTimeout(1000*10); //Metodo que pone un limite de espera a la escucha del socket
+				socket.receive(paqueteRecibido);
+				Calendar b = Calendar.getInstance();
+				if(b.getTimeInMillis()*1000-a.getTimeInMillis()*1000>10||actualizarTabla(paqueteRecibido.getData())){
+					throw new SocketTimeoutException();
 				}
+			} catch (SocketTimeoutException e){
+				Set<InetAddress> keys =  vecinos.keySet();
+				for(InetAddress key : keys){
+					DatagramPacket paqueteEnvio = new DatagramPacket(getPaquete(), getPaquete().length, key, vecinos.get(key));
+					try {
+						socket.send(paqueteEnvio);
+					} catch (IOException e1) {
+						System.err.println("Error en envio de datos");
+					}
+				}
+			} catch (IOException e) {
+				System.err.println("Error en envio o escucha datos");
 			}
-		};
-		Timer t = new Timer();
-		t.schedule(tarea, 0, 30*1000);		//Metodo que ejecuta tarea desde 0 milisegundos con un periodo de 30 segundos	
-		
-		
+			a = Calendar.getInstance();
+		}
 	}
 	
-	public void actualizarTabla(byte[] datos){
-		
+	public boolean actualizarTabla(byte[] datos){
+		return true;
 	}
 	
 	/**
@@ -146,6 +148,10 @@ public class Router {
 		Set<String> ips = tablaEncaminamiento.keySet();
 		int i=0;
 		for(String key: ips){
+			//Addres Family y route TAG
+			byte[] AFRT = {(byte) 0, (byte) 2, (byte) 0, (byte) 0};
+			System.arraycopy(AFRT, 0, entradas, i, AFRT.length);
+			i += 4;
 			//Ip destino
 			try {
 				byte[] dirDestino = InetAddress.getByName(key).getAddress();
@@ -155,42 +161,31 @@ public class Router {
 				System.err.println("Error en bytes direccion destino");
 			}
 			//Mascara
-			String mascara="";
-			int x,d=1;
+			byte[] masc = new byte[4];
+			int x,d;
 			for(x=0; x<tablaEncaminamiento.get(key).getMascara()/8; x++){
-				mascara += "255";
-				if(x<3)
-					mascara+= ".";
+				masc[x] = (byte) 255;
 			}
 			if(tablaEncaminamiento.get(key).getMascara()/8<4){
-				for(int j=0; j<tablaEncaminamiento.get(key).getMascara()-x*8; j++){
-					d = d*2;
-				}
-				d -=1;
-				mascara += d;
+				d = (int) (Math.pow(2, tablaEncaminamiento.get(key).getMascara()-x*8)-1);
+				masc[x] = (byte)d;
 				d = 1;
-				while(tablaEncaminamiento.get(key).getMascara()/8+d<4){
-					mascara += ".0";
-					d++;
+				while(x<4){
+					masc[x] = (byte) 0;
+					x++;
 				}
 			}
-			try {
-				InetAddress mascaraIP = InetAddress.getByName(mascara);
-				byte[] mas = mascaraIP.getAddress();
-				System.arraycopy(mas, 0, entradas, i, mas.length);
-			} catch (UnknownHostException e1) {
-				System.err.println("Error en bytes mascara");
-			}
-			
-			
-			//IP siguiente salto;
+			System.arraycopy(masc, 0, entradas, i, masc.length);
 			i += 4;
-			byte[] dirNextHop = tablaEncaminamiento.get(key).getNextHop().getAddress();
+
+			//IP siguiente salto, esta debera ser 0.0.0.0 se debera coger del paquete la direccion origen;
+			byte[] dirNextHop = {(byte) 0, (byte) 0, (byte) 0, (byte) 0};
 			System.arraycopy(dirNextHop, 0, entradas, i, dirNextHop.length);
 			i += 4;
+			
 			//Falta metrica en bytes
-			byte metric = (byte) tablaEncaminamiento.get(key).getNumeroSaltos();
-			System.arraycopy(metric, 0, entradas, i+3, 1);
+			byte[] metric = {(byte) 0, (byte) 0, (byte) 0, (byte) tablaEncaminamiento.get(key).getNumeroSaltos()};
+			System.arraycopy(metric, 0, entradas, i, metric.length);
 			i += 4;
 			
 		}
@@ -209,7 +204,7 @@ public class Router {
 	}
 
 	public void imprimirTabla(){
-		System.out.println("Direccion Destino\tSaltos\tNext Hop\tPuerto");
+		System.out.println("Direccion Destino\tSaltos\tNext Hop");
 		Set<String> keys = tablaEncaminamiento.keySet();
 		for(String key:keys){
 			System.out.println(tablaEncaminamiento.get(key));
