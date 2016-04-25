@@ -9,15 +9,11 @@ public class FilaTabla {
 	private InetAddress direccionDestino;
 	private int numeroSaltos;
 	private InetAddress nextHop;
-	public String mascaraSubRed;
+	public int mascaraSubRed;
 	
-	public FilaTabla(String direccionDestino, int numeroSaltos, String nextHop, String mascaraSubRed){
-		try {
-			this.direccionDestino = InetAddress.getByName(direccionDestino);
-			this.nextHop = InetAddress.getByName(nextHop);
-		} catch (UnknownHostException e) {
-			System.err.println("Error en Direccion destino");
-		}
+	public FilaTabla(InetAddress direccionDestino, int numeroSaltos, InetAddress nextHop, int mascaraSubRed){
+		this.direccionDestino = direccionDestino;
+		this.nextHop = nextHop;
 		this.numeroSaltos = numeroSaltos;
 		this.mascaraSubRed = mascaraSubRed;
 	}
@@ -37,24 +33,35 @@ public class FilaTabla {
 		return this.direccionDestino;
 	}
 	
+	public void setNumeroSaltos(int saltos){
+		this.numeroSaltos = saltos;
+	}
+	
 	public int getNumeroSaltos(){
 		return this.numeroSaltos;
 	}
 	
+	public void setNextHop(InetAddress nextHop){
+		this.nextHop = nextHop;
+	}
 	
 	public InetAddress getNextHop(){
 		return this.nextHop;
 	}
 	
-	public String getMascaraSubRed(){
-		return this.mascaraSubRed;
-	}
-	
 	public int getMascara(){
-		return Integer.parseInt(this.mascaraSubRed);
+		return this.mascaraSubRed;
 	}
 	
 	public String toString(){
 		return direccionDestino+"\t\t"+numeroSaltos+"\t"+nextHop;
+	}
+	
+	public boolean comparar(int numeroSaltos, InetAddress nextHop){
+		if(numeroSaltos<this.numeroSaltos){
+			this.nextHop = nextHop;
+			return true;
+		}
+		return false;
 	}
 }
