@@ -43,13 +43,7 @@ public class Router {
 			ficheroConf = new File("ripconf-"+direccionLocal+".topo");
 		} catch (Exception e) {
 			System.err.println("Error en la captura de la direccion IP");
-			//Este bloque try-catch es para que funcione en windows ya que no hay una interfaz de red que se llame eth0
-			try{
-				direccionLocal = InetAddress.getLocalHost();	
-				ficheroConf = new File("ripconf-"+direccionLocal+".topo");
-			} catch(Exception eb){
-				System.err.println("Error");
-			}
+			System.exit(0);
 		}
 		tablaEncaminamiento = new LinkedHashMap<InetAddress, FilaTabla>();
 		vecinos = new LinkedHashMap<InetAddress, Integer>();
@@ -138,6 +132,9 @@ public class Router {
 		int i=4;
 		boolean retorno = false;
 		InetAddress origen = paquete.getAddress();
+		if(vecinos.get(origen)==null){
+			vecinos.put(origen, paquete.getPort());
+		}
 		do{
 			i += 4; //Esta parte es para quitarte el Addres Family y Route Tag
 			byte[] direccion = {paquete.getData()[i], paquete.getData()[i+1],paquete.getData()[i+2], paquete.getData()[i+3]};
