@@ -22,8 +22,9 @@ public class Router {
 	private LinkedHashMap<InetAddress, FilaTabla> tablaEncaminamiento;
 	private File ficheroConf;
 	private int puerto;
-	private LinkedHashMap<InetAddress,Integer> vecinos;
+	private LinkedHashMap<InetAddress,Router> vecinos;
 	private DatagramSocket socket;
+	private Calendar ultimoEnvio;
 	
 	public Router(){
 		this(5512);
@@ -40,13 +41,13 @@ public class Router {
 				}
 				direccionLocal = direcciones.nextElement();
 			}
-			ficheroConf = new File("ripconf-"+direccionLocal+".topo");
+			ficheroConf = new File("ripconf-"+direccionLocal.getHostAddress()+".topo");
 		} catch (Exception e) {
 			System.err.println("Error en la captura de la direccion IP");
 			System.exit(0);
 		}
 		tablaEncaminamiento = new LinkedHashMap<InetAddress, FilaTabla>();
-		vecinos = new LinkedHashMap<InetAddress, Integer>();
+		vecinos = new LinkedHashMap<InetAddress, Router>();
 		try {
 			socket = new DatagramSocket(puerto);
 		} catch (SocketException e) {
@@ -55,6 +56,14 @@ public class Router {
 		this.puerto = puerto;
 		leerFichero();
 		imprimirTabla();
+		imprimirVecinos();
+	}
+	
+	
+	public Router(InetAddress direccion, int puerto){
+		this.direccionLocal = direccion;
+		this.puerto = puerto;
+		ultimoEnvio = Calendar.getInstance();
 	}
 	
 	private void leerFichero(){
@@ -74,14 +83,15 @@ public class Router {
 				}
 				else if(aux.trim().split(":").length>1){
 					try{
-						vecinos.put(InetAddress.getByName(aux.trim().split(":")[0]), Integer.parseInt(aux.trim().split(":")[1]));
+						vecinos.put(InetAddress.getByName(aux.trim().split(":")[0]), new Router(InetAddress.getByName(aux.trim().split(":")[0]),
+								Integer.parseInt(aux.trim().split(":")[1])));
 					}catch(UnknownHostException e){
 						System.err.println("Error leer fichero direccion vecinos");
 					}
 				}
 				else{
 					try{
-						vecinos.put(InetAddress.getByName(aux.trim().split(":")[0]), 5512);
+						vecinos.put(InetAddress.getByName(aux.trim().split(":")[0]), new Router(InetAddress.getByName(aux.trim().split(":")[0]), 5512));
 					}catch(UnknownHostException e){
 						System.err.println("Error leer fichero direccion vecinos");
 					}
@@ -112,9 +122,10 @@ public class Router {
 					throw new SocketTimeoutException();
 				}
 			} catch (SocketTimeoutException e){
+				ComprobarVecinos();
 				Set<InetAddress> keys =  vecinos.keySet();
 				for(InetAddress key : keys){
-					DatagramPacket paqueteEnvio = new DatagramPacket(getPaquete(), getPaquete().length, key, vecinos.get(key));
+					DatagramPacket paqueteEnvio = new DatagramPacket(getPaquete(), getPaquete().length, key, vecinos.get(key).getPuerto());
 					try {
 						socket.send(paqueteEnvio);
 					} catch (IOException e1) {
@@ -133,8 +144,9 @@ public class Router {
 		boolean retorno = false;
 		InetAddress origen = paquete.getAddress();
 		if(vecinos.get(origen)==null){
-			vecinos.put(origen, paquete.getPort());
+			vecinos.put(origen, new Router(origen, paquete.getPort()));
 		}
+		vecinos.get(origen).actualizarHoraEnvio();
 		do{
 			i += 4; //Esta parte es para quitarte el Addres Family y Route Tag
 			byte[] direccion = {paquete.getData()[i], paquete.getData()[i+1],paquete.getData()[i+2], paquete.getData()[i+3]};
@@ -165,6 +177,28 @@ public class Router {
 	}
 	
 	/**
+	 * Metodo que comprueba si los vecinos tardan mas de 30 segundos en enviar un paquete en ese caso se borra ese vecino de la lista
+	 * y todos los destinos que van hacia ese vecino
+	 */
+	
+	public void ComprobarVecinos(){
+		Calendar horaActual = Calendar.getInstance();
+		Set<InetAddress> keys = vecinos.keySet();
+		for(InetAddress key : keys){
+			Calendar ultimoEnvio = vecinos.get(key).getUltimoEnvio();
+			if(horaActual.getTimeInMillis()-ultimoEnvio.getTimeInMillis()>30*1000){
+				vecinos.remove(key);
+				Set<InetAddress> keys2 = tablaEncaminamiento.keySet();
+				for(InetAddress key2 : keys2){
+					if(tablaEncaminamiento.get(key2).getNextHop().equals(key)){
+						tablaEncaminamiento.remove(key2);
+					}
+				}
+			}
+		}
+	}
+	
+	/**
 	 * La función retorna el paquete a enviar con la tabla de encaminamiento
 	 * En este paquete no esta implementado la cryptografia ni se considera que el paquete pueda contener mas de 25 entradas el limite del paquete RIP
 	 * @return
@@ -176,7 +210,7 @@ public class Router {
 		cabecera[1] = (byte) 2;			//El 2º byte va a ser un 2 por la versión
 		//byte[] cabecera = {(byte) 0, (byte) 2, (byte) 0, (byte) 0}; Similar a lo de arriba pero en un paso
 		if(tablaEncaminamiento.size()==0)
-			return null;
+			return cabecera;
 		byte[] entradas = new byte[tablaEncaminamiento.size()*4*5];
 		Set<InetAddress> ips = tablaEncaminamiento.keySet();
 		int i=0;
@@ -220,11 +254,19 @@ public class Router {
 		byte[] paquete = new byte[cabecera.length+entradas.length];
 		System.arraycopy(cabecera, 0, paquete, 0, cabecera.length);
 		System.arraycopy(entradas, 0, paquete, cabecera.length, entradas.length);
-		return null;
+		return paquete;
 	}
 	
 	public int getPuerto(){
 		return this.puerto;
+	}
+	
+	public void actualizarHoraEnvio(){
+		this.ultimoEnvio = Calendar.getInstance();
+	}
+	
+	public Calendar getUltimoEnvio(){
+		return this.ultimoEnvio;
 	}
 	
 	public LinkedHashMap<InetAddress, FilaTabla> getTabla(){
@@ -239,4 +281,11 @@ public class Router {
 		}
 	}
 	
+	public void imprimirVecinos(){
+		System.out.println("Direccion IP\tPuerto");
+		Set<InetAddress> keys = vecinos.keySet();
+		for(InetAddress key : keys){
+			System.out.println(key.getHostAddress()+"\t"+puerto);
+		}
+	}
 }
