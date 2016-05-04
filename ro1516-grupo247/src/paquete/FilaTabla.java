@@ -54,7 +54,7 @@ public class FilaTabla {
 	}
 	
 	public String toString(){
-		return direccionDestino+"\t\t"+numeroSaltos+"\t"+nextHop;
+		return direccionDestino+"\t\t"+numeroSaltos+"\t"+nextHop+"\t"+mascaraSubRed;
 	}
 	
 	public boolean comparar(int numeroSaltos, InetAddress nextHop){

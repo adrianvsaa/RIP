@@ -41,6 +41,7 @@ public class Router {
 				}
 				direccionLocal = direcciones.nextElement();
 			}
+			direccionLocal = InetAddress.getLocalHost();
 			ficheroConf = new File("ripconf-"+direccionLocal.getHostAddress()+".topo");
 		} catch (Exception e) {
 			System.err.println("Error en la captura de la direccion IP");
@@ -123,6 +124,8 @@ public class Router {
 				}
 			} catch (SocketTimeoutException e){
 				ComprobarVecinos();
+				imprimirVecinos();
+				imprimirTabla();
 				Set<InetAddress> keys =  vecinos.keySet();
 				for(InetAddress key : keys){
 					DatagramPacket paqueteEnvio = new DatagramPacket(getPaquete(), getPaquete().length, key, vecinos.get(key).getPuerto());
@@ -147,7 +150,7 @@ public class Router {
 			vecinos.put(origen, new Router(origen, paquete.getPort()));
 		}
 		vecinos.get(origen).actualizarHoraEnvio();
-		do{
+		while(i<paquete.getData().length){
 			i += 4; //Esta parte es para quitarte el Addres Family y Route Tag
 			byte[] direccion = {paquete.getData()[i], paquete.getData()[i+1],paquete.getData()[i+2], paquete.getData()[i+3]};
 			InetAddress direccionDestino = null;
@@ -157,8 +160,8 @@ public class Router {
 				System.err.println("Error direccion destino en actualizar paquete");
 			}
 			i += 4;
-			int masc1 = (int) paquete.getData()[i], masc2 = (int) paquete.getData()[i+1], masc3 = (int) paquete.getData()[i+2], 
-					masc4 = (int) paquete.getData()[i+3];
+			int masc1 = Byte.toUnsignedInt(paquete.getData()[i]), masc2 = Byte.toUnsignedInt(paquete.getData()[i+1]), masc3 = Byte.toUnsignedInt(paquete.getData()[i+2]), 
+				masc4 = Byte.toUnsignedInt(paquete.getData()[i+3]);
 			int mascara = Integer.bitCount(masc1) + Integer.bitCount(masc2) + Integer.bitCount(masc3) + Integer.bitCount(masc4);
 			i += 11;
 			int metrica = (int) paquete.getData()[i];
@@ -172,7 +175,7 @@ public class Router {
 				tablaEncaminamiento.get(direccionDestino).setNumeroSaltos(metrica+1);
 				retorno = true;
 			}
-		}while(i<paquete.getData().length);
+		}
 		return retorno;
 	}
 	
@@ -184,16 +187,19 @@ public class Router {
 	public void ComprobarVecinos(){
 		Calendar horaActual = Calendar.getInstance();
 		Set<InetAddress> keys = vecinos.keySet();
+		Set<InetAddress> keys2 = tablaEncaminamiento.keySet();
 		for(InetAddress key : keys){
 			Calendar ultimoEnvio = vecinos.get(key).getUltimoEnvio();
 			if(horaActual.getTimeInMillis()-ultimoEnvio.getTimeInMillis()>30*1000){
-				vecinos.remove(key);
-				Set<InetAddress> keys2 = tablaEncaminamiento.keySet();
 				for(InetAddress key2 : keys2){
-					if(tablaEncaminamiento.get(key2).getNextHop().equals(key)){
+					if(tablaEncaminamiento.get(key2)==null)
+						continue;
+					if(tablaEncaminamiento.get(key2).getNextHop().getHostAddress().equals(key.getHostAddress())){
 						tablaEncaminamiento.remove(key2);
 					}
 				}
+				vecinos.remove(key);
+				
 			}
 		}
 	}
@@ -226,6 +232,8 @@ public class Router {
 			byte[] masc = new byte[4];
 			int x,d;
 			for(x=0; x<tablaEncaminamiento.get(key).getMascara()/8; x++){
+				if(x>=4)
+					break;
 				masc[x] = (byte) 255;
 			}
 			if(tablaEncaminamiento.get(key).getMascara()/8<4){
@@ -274,7 +282,7 @@ public class Router {
 	}
 
 	public void imprimirTabla(){
-		System.out.println("Direccion Destino\tSaltos\tNext Hop");
+		System.out.println("Direccion Destino\tSaltos\tNext Hop\t\tMascara");
 		Set<InetAddress> keys = tablaEncaminamiento.keySet();
 		for(InetAddress key:keys){
 			System.out.println(tablaEncaminamiento.get(key));
@@ -282,7 +290,7 @@ public class Router {
 	}
 	
 	public void imprimirVecinos(){
-		System.out.println("Direccion IP\tPuerto");
+		System.out.println("Direccion IP\t\tPuerto");
 		Set<InetAddress> keys = vecinos.keySet();
 		for(InetAddress key : keys){
 			System.out.println(key.getHostAddress()+"\t"+puerto);
