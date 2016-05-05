@@ -152,6 +152,8 @@ public class Router {
 		}
 		vecinos.get(origen).actualizarHoraEnvio();
 		while(i<paquete.getData().length){
+			if(Byte.toUnsignedInt(paquete.getData()[i+1])!=2)
+				break;
 			i += 4; //Esta parte es para quitarte el Addres Family y Route Tag
 			byte[] direccion = {paquete.getData()[i], paquete.getData()[i+1],paquete.getData()[i+2], paquete.getData()[i+3]};
 			InetAddress direccionDestino = null;
@@ -190,23 +192,42 @@ public class Router {
 		Set<InetAddress> keys = vecinos.keySet();
 		Set<InetAddress> keys2 = tablaEncaminamiento.keySet();
 		ArrayList<InetAddress> lista = new ArrayList<InetAddress>();
-		for(InetAddress key : keys){
-			Calendar ultimoEnvio = vecinos.get(key).getUltimoEnvio();
-			if(horaActual.getTimeInMillis()-ultimoEnvio.getTimeInMillis()>30*1000){
-				lista.add(key);
-				vecinos.remove(key);
-				
+		boolean aux = true;
+		InetAddress borrar = null;
+		do{
+			borrar = null;
+			aux = false;
+			for(InetAddress key : keys){
+				Calendar ultimoEnvio = vecinos.get(key).getUltimoEnvio();
+				if(horaActual.getTimeInMillis()-ultimoEnvio.getTimeInMillis()>30*1000){
+					borrar = key;
+					break;
+				}
 			}
-		}
-		for(InetAddress key2 : keys2){
-			for(int i=0; i<lista.size(); i++){
-				if(lista.get(i)==null)
-					continue;
-				if(lista.get(i).getHostAddress().equals(tablaEncaminamiento.get(key2).getNextHop().getHostAddress()))
-					tablaEncaminamiento.remove(key2);
-						
+			if(borrar==null)
+				break;
+			if(horaActual.getTimeInMillis()-vecinos.get(borrar).getUltimoEnvio().getTimeInMillis()>30*1000){
+				aux = true;
+				vecinos.remove(borrar);
 			}
-		}
+		}while(aux);
+		do{
+			aux = false;
+			borrar = null;
+			for(InetAddress key2 : keys2){
+				if(vecinos.get(tablaEncaminamiento.get(key2).getNextHop())==null&&
+						!tablaEncaminamiento.get(key2).getNextHop().equals(this.direccionLocal)){
+					borrar = key2;
+					break;
+				}
+			}
+			if(borrar==null)
+				break;
+			if(vecinos.get(tablaEncaminamiento.get(borrar).getNextHop())==null){
+				tablaEncaminamiento.remove(borrar);
+				aux = true;
+			}
+		}while(aux);
 	}
 	
 	/**
