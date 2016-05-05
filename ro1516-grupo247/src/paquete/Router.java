@@ -11,6 +11,7 @@ import java.net.NetworkInterface;
 import java.net.SocketException;
 import java.net.SocketTimeoutException;
 import java.net.UnknownHostException;
+import java.util.ArrayList;
 import java.util.Calendar;
 import java.util.Enumeration;
 import java.util.LinkedHashMap;
@@ -188,18 +189,22 @@ public class Router {
 		Calendar horaActual = Calendar.getInstance();
 		Set<InetAddress> keys = vecinos.keySet();
 		Set<InetAddress> keys2 = tablaEncaminamiento.keySet();
+		ArrayList<InetAddress> lista = new ArrayList<InetAddress>();
 		for(InetAddress key : keys){
 			Calendar ultimoEnvio = vecinos.get(key).getUltimoEnvio();
 			if(horaActual.getTimeInMillis()-ultimoEnvio.getTimeInMillis()>30*1000){
-				for(InetAddress key2 : keys2){
-					if(tablaEncaminamiento.get(key2)==null)
-						continue;
-					if(tablaEncaminamiento.get(key2).getNextHop().getHostAddress().equals(key.getHostAddress())){
-						tablaEncaminamiento.remove(key2);
-					}
-				}
+				lista.add(key);
 				vecinos.remove(key);
 				
+			}
+		}
+		for(InetAddress key2 : keys2){
+			for(int i=0; i<lista.size(); i++){
+				if(lista.get(i)==null)
+					continue;
+				if(lista.get(i).getHostAddress().equals(tablaEncaminamiento.get(key2).getNextHop().getHostAddress()))
+					tablaEncaminamiento.remove(key2);
+						
 			}
 		}
 	}
