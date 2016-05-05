@@ -11,7 +11,6 @@ import java.net.NetworkInterface;
 import java.net.SocketException;
 import java.net.SocketTimeoutException;
 import java.net.UnknownHostException;
-import java.util.ArrayList;
 import java.util.Calendar;
 import java.util.Enumeration;
 import java.util.LinkedHashMap;
@@ -129,7 +128,7 @@ public class Router {
 				imprimirTabla();
 				Set<InetAddress> keys =  vecinos.keySet();
 				for(InetAddress key : keys){
-					DatagramPacket paqueteEnvio = new DatagramPacket(getPaquete(), getPaquete().length, key, vecinos.get(key).getPuerto());
+					DatagramPacket paqueteEnvio = new DatagramPacket(getPaquete(key), getPaquete(key).length, key, vecinos.get(key).getPuerto());
 					try {
 						socket.send(paqueteEnvio);
 					} catch (IOException e1) {
@@ -142,6 +141,12 @@ public class Router {
 			a = Calendar.getInstance();
 		}
 	}
+	
+	/**
+	 * Empezando a implementar trigered updates
+	 * @param paquete
+	 * @return
+	 */
 	
 	public boolean actualizarTabla(DatagramPacket paquete){
 		int i=4;
@@ -169,7 +174,9 @@ public class Router {
 			i += 11;
 			int metrica = (int) paquete.getData()[i];
 			i++;
-			if(tablaEncaminamiento.get(direccionDestino)==null){
+			if(metrica>=15)		//Si la metrica anterior es 15 o mayor el destino es inalcanzable y no aparece en la tabla
+				continue;
+			else if(tablaEncaminamiento.get(direccionDestino)==null){
 				tablaEncaminamiento.put(direccionDestino, new FilaTabla(direccionDestino, metrica+1, origen, mascara));
 				retorno = true;
 			}
@@ -191,7 +198,6 @@ public class Router {
 		Calendar horaActual = Calendar.getInstance();
 		Set<InetAddress> keys = vecinos.keySet();
 		Set<InetAddress> keys2 = tablaEncaminamiento.keySet();
-		ArrayList<InetAddress> lista = new ArrayList<InetAddress>();
 		boolean aux = true;
 		InetAddress borrar = null;
 		do{
@@ -233,12 +239,12 @@ public class Router {
 	/**
 	 * La función retorna el paquete a enviar con la tabla de encaminamiento
 	 * En este paquete no esta implementado la cryptografia ni se considera que el paquete pueda contener mas de 25 entradas el limite del paquete RIP
-	 * @return
+	 * Empezando a hacer split Horizon + poison reverse
 	 */
 	
-	public byte[] getPaquete(){
+	public byte[] getPaquete(InetAddress destino){
 		byte[] cabecera = new byte[4];	//Los bytes 2 y 3 son bytes sin uso
-		cabecera[0] = (byte) 0;			//El 1º byte va a ser un 0 porque es una respuesta
+		cabecera[0] = (byte) 2;			//El 1º byte va a ser un 2 porque es una respuesta
 		cabecera[1] = (byte) 2;			//El 2º byte va a ser un 2 por la versión
 		//byte[] cabecera = {(byte) 0, (byte) 2, (byte) 0, (byte) 0}; Similar a lo de arriba pero en un paso
 		if(tablaEncaminamiento.size()==0)
@@ -279,8 +285,10 @@ public class Router {
 			System.arraycopy(dirNextHop, 0, entradas, i, dirNextHop.length);
 			i += 4;
 			
-			//Falta metrica en bytes
-			byte[] metric = {(byte) 0, (byte) 0, (byte) 0, (byte) tablaEncaminamiento.get(key).getNumeroSaltos()};
+			//Falta metrica en bytes. Implementado Split Horizon + poison reverse
+			byte[] metric = { (byte) 0, (byte) 0, (byte) 0, (byte) tablaEncaminamiento.get(key).getNumeroSaltos()};
+			if(tablaEncaminamiento.get(key).getNextHop().equals(destino))
+				metric[3] = (byte) 16;
 			System.arraycopy(metric, 0, entradas, i, metric.length);
 			i += 4;
 			
