@@ -68,6 +68,7 @@ public class Router {
 		ultimoEnvio = Calendar.getInstance();
 	}
 	
+	
 	private void leerFichero(){
 		try {
 			Scanner entrada = new Scanner(ficheroConf);
@@ -196,6 +197,7 @@ public class Router {
 		return cambios;
 	}
 	
+	
 	public LinkedList<FilaTabla> actualizarTabla(DatagramPacket paquete){
 		int i=4;
 		LinkedList<FilaTabla> retorno = new LinkedList<FilaTabla>();
@@ -292,10 +294,17 @@ public class Router {
 	 */ 
 	
 	public byte[] getPaquete(InetAddress destino){
-		byte[] cabecera = new byte[4];	//Los bytes 2 y 3 son bytes sin uso
-		cabecera[0] = (byte) 2;			//El 1º byte va a ser un 2 porque es una respuesta
-		cabecera[1] = (byte) 2;			//El 2º byte va a ser un 2 por la versión
-		//byte[] cabecera = {(byte) 0, (byte) 2, (byte) 0, (byte) 0}; Similar a lo de arriba pero en un paso
+		byte[] cabecera = {(byte) 2, (byte) 2, (byte) 0, (byte) 0}; 
+		
+		byte[] autentificacion = new byte[24];
+		autentificacion[0] = (byte) 2;
+		autentificacion[1] = (byte) 2;
+		autentificacion[4] = (byte) 255;
+		autentificacion[5] = (byte) 255;
+		autentificacion[7] = (byte) 2;
+		//Los 16 octetos restantes son para la contraseña
+		
+		
 		if(tablaEncaminamiento.size()==0)
 			return cabecera;
 		byte[] entradas = new byte[tablaEncaminamiento.size()*4*5];
@@ -350,7 +359,7 @@ public class Router {
 	
 	
 	public byte[] getPaquete(LinkedList<FilaTabla> lista, InetAddress destino){
-		byte[] cabecera = {(byte) 0, (byte) 2, (byte) 0, (byte) 0};
+		byte[] cabecera = {(byte) 2, (byte) 2, (byte) 0, (byte) 0};
 		byte[] entradas = new byte[5*4*lista.size()];
 		int i = 0;
 		if(lista.size()==0)
