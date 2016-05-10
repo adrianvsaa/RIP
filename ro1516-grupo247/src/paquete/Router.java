@@ -121,10 +121,13 @@ public class Router {
 		while(true){
 			try {
 				System.out.println("Tiempo de espera: "+ tiempo);
+				if(tiempo==0)
+					tiempo = 1;
 				this.socket.setSoTimeout(1000*tiempo); //Metodo que pone un limite de espera a la escucha del socket
 				socket.receive(paqueteRecibido);
 				System.out.println("Paquete recibido");
 				Calendar b = Calendar.getInstance();
+				
 				if(isActualizable(paqueteRecibido)){
 					System.out.println("Enviando Trigered Update");
 					ComprobarVecinos();
@@ -142,7 +145,7 @@ public class Router {
 					}
 				}
 				actualizarTabla(paqueteRecibido);
-				tiempo -= (b.getTimeInMillis()*1000-a.getTimeInMillis()*1000);
+				tiempo = tiempo-(int)(b.getTimeInMillis()/1000-a.getTimeInMillis()/1000);
 			} catch (SocketTimeoutException e){
 				ComprobarVecinos();
 				imprimirVecinos();
@@ -161,6 +164,7 @@ public class Router {
 				tiempo = (int) (7 + 6*Math.random());
 			} catch (IOException e) {
 				System.err.println("Error en envio o escucha datos");
+				System.exit(0);
 			}
 			
 			a = Calendar.getInstance();
@@ -264,14 +268,14 @@ public class Router {
 			aux = false;
 			for(InetAddress key : keys){
 				Calendar ultimoEnvio = vecinos.get(key).getUltimoEnvio();
-				if(horaActual.getTimeInMillis()-ultimoEnvio.getTimeInMillis()>30*1000){ //En esta parte hay que poner la ruta como inalcanzable 16 saltos
+				if(horaActual.getTimeInMillis()-ultimoEnvio.getTimeInMillis()>30*1000 && horaActual.getTimeInMillis()-ultimoEnvio.getTimeInMillis()<60*1000){ //En esta parte hay que poner la ruta como inalcanzable 16 saltos
 					for (InetAddress key2 : keys2){
 						if(tablaEncaminamiento.get(key2).getNextHop().equals(key)){
 							tablaEncaminamiento.get(key2).setNumeroSaltos(16);
 						}
 					}
 				}
-				else if(horaActual.getTimeInMillis()-ultimoEnvio.getTimeInMillis()>60*1000){
+				else if(horaActual.getTimeInMillis()-ultimoEnvio.getTimeInMillis()>= 60*1000){
 					borrar = key;
 					break;
 				}
