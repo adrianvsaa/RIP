@@ -123,10 +123,13 @@ public class Router {
 				System.out.println("Tiempo de espera: "+ tiempo);
 				this.socket.setSoTimeout(1000*tiempo); //Metodo que pone un limite de espera a la escucha del socket
 				socket.receive(paqueteRecibido);
+				System.out.println("Paquete recibido");
 				Calendar b = Calendar.getInstance();
 				if(isActualizable(paqueteRecibido)){
+					System.out.println("Enviando Trigered Update");
 					ComprobarVecinos();
 					LinkedList<FilaTabla> lista = actualizarTabla(paqueteRecibido);
+					actualizarTabla(paqueteRecibido);
 					Set<InetAddress> keys =  vecinos.keySet();
 					for(InetAddress key : keys){
 						DatagramPacket paqueteEnvio = new DatagramPacket(getPaquete(lista, key), getPaquete(lista, key).length,
@@ -138,9 +141,7 @@ public class Router {
 						}
 					}
 				}
-				else {
-					tiempo -= socket.getSoTimeout();
-				}
+				tiempo -= (b.getTimeInMillis()*1000-a.getTimeInMillis()*1000);
 			} catch (SocketTimeoutException e){
 				ComprobarVecinos();
 				imprimirVecinos();
@@ -155,11 +156,11 @@ public class Router {
 					} catch (IOException e1) {
 						System.err.println("Error en envio de datos");
 					}
-				}
-				tiempo = (int) (7 + 6*Math.random());
+				}		
 			} catch (IOException e) {
 				System.err.println("Error en envio o escucha datos");
 			}
+			tiempo = (int) (7 + 6*Math.random());
 			a = Calendar.getInstance();
 		}
 	}
