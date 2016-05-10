@@ -57,8 +57,8 @@ public class Router {
 		}
 		this.puerto = puerto;
 		leerFichero();
-		imprimirTabla();
 		imprimirVecinos();
+		imprimirTabla();
 	}
 	
 	
@@ -113,18 +113,18 @@ public class Router {
 	 */
 	
 	public void start(){
+		int tiempo = (int) (7 + 6*Math.random());
 		byte[] datosRecibidos = new byte[25*5*4+4];
 		DatagramPacket paqueteRecibido = new DatagramPacket(datosRecibidos, datosRecibidos.length);
 		Calendar a = Calendar.getInstance();
+		
 		while(true){
 			try {
-				this.socket.setSoTimeout(1000*10); //Metodo que pone un limite de espera a la escucha del socket
+				System.out.println("Tiempo de espera: "+ tiempo);
+				this.socket.setSoTimeout(1000*tiempo); //Metodo que pone un limite de espera a la escucha del socket
 				socket.receive(paqueteRecibido);
 				Calendar b = Calendar.getInstance();
-				if(b.getTimeInMillis()*1000-a.getTimeInMillis()*1000>10*1000){
-					throw new SocketTimeoutException();
-				}
-				else if(isActualizable(paqueteRecibido)){ //Implementado Trigered Updates
+				if(isActualizable(paqueteRecibido)){
 					ComprobarVecinos();
 					LinkedList<FilaTabla> lista = actualizarTabla(paqueteRecibido);
 					Set<InetAddress> keys =  vecinos.keySet();
@@ -138,19 +138,25 @@ public class Router {
 						}
 					}
 				}
+				else {
+					tiempo -= socket.getSoTimeout();
+				}
 			} catch (SocketTimeoutException e){
 				ComprobarVecinos();
-				imprimirTabla();
 				imprimirVecinos();
+				imprimirTabla();
+				
 				Set<InetAddress> keys =  vecinos.keySet();
 				for(InetAddress key : keys){
 					DatagramPacket paqueteEnvio = new DatagramPacket(getPaquete(key), getPaquete(key).length, key, vecinos.get(key).getPuerto());
 					try {
+						System.out.println("Enviando paquete a: "+key.getHostAddress()+"\n\n");
 						socket.send(paqueteEnvio);
 					} catch (IOException e1) {
 						System.err.println("Error en envio de datos");
 					}
 				}
+				tiempo = (int) (7 + 6*Math.random());
 			} catch (IOException e) {
 				System.err.println("Error en envio o escucha datos");
 			}
@@ -255,7 +261,14 @@ public class Router {
 			aux = false;
 			for(InetAddress key : keys){
 				Calendar ultimoEnvio = vecinos.get(key).getUltimoEnvio();
-				if(horaActual.getTimeInMillis()-ultimoEnvio.getTimeInMillis()>30*1000){
+				if(horaActual.getTimeInMillis()-ultimoEnvio.getTimeInMillis()>30*1000){ //En esta parte hay que poner la ruta como inalcanzable 16 saltos
+					for (InetAddress key2 : keys2){
+						if(tablaEncaminamiento.get(key2).getNextHop().equals(key)){
+							tablaEncaminamiento.get(key2).setNumeroSaltos(16);
+						}
+					}
+				}
+				else if(horaActual.getTimeInMillis()-ultimoEnvio.getTimeInMillis()>60*1000){
 					borrar = key;
 					break;
 				}
@@ -431,6 +444,7 @@ public class Router {
 		for(InetAddress key:keys){
 			System.out.println(tablaEncaminamiento.get(key));
 		}
+		System.out.println("\n\n");
 	}
 	
 	public void imprimirVecinos(){
