@@ -141,6 +141,7 @@ public class Router {
 						}
 					}
 				}
+				actualizarTabla(paqueteRecibido);
 				tiempo -= (b.getTimeInMillis()*1000-a.getTimeInMillis()*1000);
 			} catch (SocketTimeoutException e){
 				ComprobarVecinos();
@@ -156,11 +157,12 @@ public class Router {
 					} catch (IOException e1) {
 						System.err.println("Error en envio de datos");
 					}
-				}		
+				}	
+				tiempo = (int) (7 + 6*Math.random());
 			} catch (IOException e) {
 				System.err.println("Error en envio o escucha datos");
 			}
-			tiempo = (int) (7 + 6*Math.random());
+			
 			a = Calendar.getInstance();
 		}
 	}
