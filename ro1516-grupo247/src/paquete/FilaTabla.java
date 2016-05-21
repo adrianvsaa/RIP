@@ -59,7 +59,6 @@ public class FilaTabla {
 	
 	public boolean comparar(int numeroSaltos, InetAddress nextHop){
 		if(numeroSaltos<this.numeroSaltos){
-			this.nextHop = nextHop;
 			return true;
 		}
 		return false;
