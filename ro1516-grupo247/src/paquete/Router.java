@@ -127,7 +127,6 @@ public class Router {
 				this.socket.setSoTimeout(1000*tiempo); //Metodo que pone un limite de espera a la escucha del socket
 				socket.receive(paqueteRecibido);
 				System.out.println("Paquete recibido de "+paqueteRecibido.getAddress());
-				imprimirPaquete(paqueteRecibido);
 				Calendar b = Calendar.getInstance();
 				if(vecinos.get(paqueteRecibido.getAddress())==null){
 					System.out.println("Entra");
@@ -176,30 +175,6 @@ public class Router {
 		}
 	}
 	
-	public void imprimirPaquete(DatagramPacket p){
-		System.out.println("Dir destino\tMascara\t\tNext Hop\tMetrica");
-		int i= 4;
-		while(i<p.getData().length){
-			if(Byte.toUnsignedInt(p.getData()[i+1])!=2)
-				break;
-			i += 4;
-			byte[] dir = {p.getData()[i], p.getData()[i+1], p.getData()[i+2], p.getData()[i+3]};
-			InetAddress dire = null;
-			try{
-				dire = InetAddress.getByAddress(dir);
-			}catch(UnknownHostException e){
-				
-			}
-			i +=4;
-			int[] mascara = { p.getData()[i], p.getData()[i+1], p.getData()[i+2], p.getData()[i+3]};
-			InetAddress or = p.getAddress();
-			i += 11;
-			int metrica = (int) p.getData()[i];
-			i++;
-			System.out.println(dire.getHostAddress()+"\t"+mascara[0]+"."+mascara[1]+"."+mascara[2]+"."+mascara[3]+"\t"+or.getHostAddress()+"\t"+metrica);
-		}
-	}
-	
 	/**
 	 * Empezando a implementar trigered updates
 	 * Si queremos utilizar este metodo para implementar el trigered update hay que cambiar el final porque si no modifica ya la tabla
@@ -233,11 +208,17 @@ public class Router {
 			i += 11;
 			int metrica = Byte.toUnsignedInt(paquete.getData()[i]);
 			i++;
-			if(metrica>=15)		//Si la metrica anterior es 15 o mayor el destino es inalcanzable y no aparece en la tabla
-				continue;
-			else if(tablaEncaminamiento.get(direccionDestino)==null){
+			
+			if(tablaEncaminamiento.get(direccionDestino)==null){
 				retorno.add(new FilaTabla(direccionDestino, metrica+1, origen, mascara));
 				tablaEncaminamiento.put(direccionDestino, new FilaTabla(direccionDestino, metrica+1, origen, mascara));
+			}
+			else if(metrica >= 15 ){
+				if(tablaEncaminamiento.get(direccionDestino).getNextHop().equals(origen)){
+					tablaEncaminamiento.remove(direccionDestino);
+					retorno.add(new FilaTabla(direccionDestino, 16, origen, mascara));
+					continue;
+				}
 			}
 			else if(tablaEncaminamiento.get(direccionDestino).comparar(metrica+1, origen)){
 				tablaEncaminamiento.get(direccionDestino).setNextHop(origen);
@@ -310,83 +291,24 @@ public class Router {
 	 */ 
 	
 	public byte[] getPaquete(InetAddress destino){
-		byte[] cabecera = {(byte) 2, (byte) 2, (byte) 0, (byte) 0}; 
-		
-		byte[] autentificacion = new byte[20];
-		autentificacion[0] = (byte) 255;
-		autentificacion[1] = (byte) 255;
-		autentificacion[3] = (byte) 2;
-		//Los 16 octetos restantes son para la contraseña
-		
-		byte[] entradas = new byte[(tablaEncaminamiento.size()+1)*4*5];
-		Set<InetAddress> ips = tablaEncaminamiento.keySet();
-		int i=0;
-		byte[] cab = {(byte) 0, (byte) 2, (byte) 0, (byte) 0};
-		System.arraycopy(cab, 0, entradas, i, cab.length);
-		i += 4;
-		System.arraycopy(this.direccionLocal.getAddress(), 0, entradas, i, 4);
-		i += 4;
-		//Falta mascara
-		byte[] mascara = {(byte) 255, (byte) 255, (byte) 255, (byte) 255};
-		System.arraycopy(mascara, 0, entradas, i, 4);
-		i += 4;
-		//Next Hop de deja a ceros
-		byte[] ceros = {(byte) 0, (byte) 0, (byte) 0, (byte) 0};
-		System.arraycopy(ceros, 0, entradas, i, ceros.length);
-		i += 4;
-		entradas[i+4] = 0;
-		i+= 4;
-		for(InetAddress key: ips){
-			//Addres Family y route TAG
-			byte[] AFRT = {(byte) 0, (byte) 2, (byte) 0, (byte) 0};
-			System.arraycopy(AFRT, 0, entradas, i, AFRT.length);
-			i += 4;
-			byte[] dirDestino = key.getAddress();
-			System.arraycopy(dirDestino, 0, entradas, i, dirDestino.length);
-			i += 4;
-			//Mascara
-			byte[] masc = new byte[4];
-			int x,d;
-			for(x=0; x<tablaEncaminamiento.get(key).getMascara()/8; x++){
-				if(x>=4)
-					break;
-				masc[x] = (byte) 255;
-			}
-			if(tablaEncaminamiento.get(key).getMascara()/8<4){
-				d = (int) (Math.pow(2, tablaEncaminamiento.get(key).getMascara()-x*8)-1);
-				masc[x] = (byte)d;
-				d = 1;
-				while(x<4){
-					masc[x] = (byte) 0;
-					x++;
-				}
-			}
-			System.arraycopy(masc, 0, entradas, i, masc.length);
-			i += 4;
-
-			//IP siguiente salto, esta debera ser 0.0.0.0 se debera coger del paquete la direccion origen;
-			byte[] dirNextHop = {(byte) 0, (byte) 0, (byte) 0, (byte) 0};
-			System.arraycopy(dirNextHop, 0, entradas, i, dirNextHop.length);
-			i += 4;
-			
-			//Implementado Split Horizon + poison reverse
-			byte[] metric = { (byte) 0, (byte) 0, (byte) 0, (byte) tablaEncaminamiento.get(key).getNumeroSaltos()};
-			if(tablaEncaminamiento.get(key).getNextHop().equals(destino))
-				metric[3] = (byte) 16;
-			System.arraycopy(metric, 0, entradas, i, metric.length);
-			i += 4;
-			
+		LinkedList<FilaTabla> lista = new LinkedList<FilaTabla>();
+		Set<InetAddress> keys = tablaEncaminamiento.keySet();
+		for(InetAddress key : keys){
+			lista.add(tablaEncaminamiento.get(key));
 		}
-		byte[] paquete = new byte[cabecera.length+entradas.length];
-		System.arraycopy(cabecera, 0, paquete, 0, cabecera.length);
-		System.arraycopy(entradas, 0, paquete, cabecera.length, entradas.length);
-		return paquete;
+		return getPaquete(lista, destino);
 	}
 	
 	
 	public byte[] getPaquete(LinkedList<FilaTabla> lista, InetAddress destino){
 		byte[] cabecera = {(byte) 2, (byte) 2, (byte) 0, (byte) 0};
 		byte[] entradas = new byte[5*4*lista.size()];
+		byte[] autentificacion = new byte[20];
+		autentificacion[0] = (byte) 255;
+		autentificacion[1] = (byte) 255;
+		autentificacion[3] = (byte) 2;
+		//Los 16 octetos restantes son para la contraseña
+		
 		int i = 0;
 		if(lista.size()==0)
 			return cabecera;
