@@ -144,6 +144,10 @@ public class Router {
 					tiempo = tiempo-(int)(b.getTimeInMillis()/1000-a.getTimeInMillis()/1000);
 					continue;
 				}
+				if(!comprobarContrasena(paqueteRecibido)){
+					tiempo = tiempo-(int)(b.getTimeInMillis()/1000-a.getTimeInMillis()/1000);
+					continue;
+				}
 				LinkedList<FilaTabla> lista = actualizarTabla(paqueteRecibido);
 				if(lista.size()!=0){
 					ComprobarVecinos();
@@ -294,6 +298,12 @@ public class Router {
 				aux = true;
 			}
 		}while(aux);
+	}
+	
+	
+	public boolean comprobarContrasena(DatagramPacket paquete){
+		byte[] contrasena = new byte[this.contrasena.getBytes().length];
+		return contrasena.equals(this.contrasena.getBytes());
 	}
 	
 	
