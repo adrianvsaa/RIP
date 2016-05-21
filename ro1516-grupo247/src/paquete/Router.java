@@ -26,37 +26,48 @@ public class Router {
 	private LinkedHashMap<InetAddress,Router> vecinos;
 	private DatagramSocket socket;
 	private Calendar ultimoEnvio;
+	private String contrasena;
 	
-	public Router(){
-		this(5512);
+	public Router(String contrasena){
+		this(5512, null, contrasena);
 	}
 	
-	public Router(int puerto){
-		try {
-			/*NetworkInterface eth = NetworkInterface.getByName("WiFi");
-			Enumeration<InetAddress> direcciones = eth.getInetAddresses();
-			direccionLocal = direcciones.nextElement();
-			while(direcciones.hasMoreElements()){
-				if(direccionLocal instanceof Inet4Address & !direccionLocal.isLoopbackAddress()){
-					break;
-				}
+	public Router(int puerto, String ip, String Contrasena){
+		if(ip==null){
+			try {
+				NetworkInterface eth = NetworkInterface.getByName("WiFi");
+				Enumeration<InetAddress> direcciones = eth.getInetAddresses();
 				direccionLocal = direcciones.nextElement();
-			}*/
-			direccionLocal = InetAddress.getLocalHost();
-			ficheroConf = new File("ripconf-"+direccionLocal.getHostAddress()+".topo");
-		} catch (Exception e) {
-			e.printStackTrace();
-			System.err.println("Error en la captura de la direccion IP");
-			System.exit(0);
+				while(direcciones.hasMoreElements()){
+					if(direccionLocal instanceof Inet4Address & !direccionLocal.isLoopbackAddress()){
+						break;
+					}
+					direccionLocal = direcciones.nextElement();
+				}
+			} catch (Exception e) {
+				e.printStackTrace();
+				System.err.println("Error en la captura de la direccion IP");
+				System.exit(0);
+			}
 		}
+		else{
+			try{
+				direccionLocal = InetAddress.getByName(ip);
+			} catch(UnknownHostException e){
+				System.err.println("Error");
+				System.exit(0);
+			}
+		}
+		ficheroConf = new File("ripconf-"+direccionLocal.getHostAddress()+".topo");
 		tablaEncaminamiento = new LinkedHashMap<InetAddress, FilaTabla>();
 		vecinos = new LinkedHashMap<InetAddress, Router>();
 		try {
-			socket = new DatagramSocket(puerto);
+			socket = new DatagramSocket(puerto, this.direccionLocal);
 		} catch (SocketException e) {
 			System.err.println("Error en socket");
 		}
 		this.puerto = puerto;
+		this.contrasena = Contrasena;
 		leerFichero();
 		imprimirVecinos();
 		imprimirTabla();
@@ -183,7 +194,7 @@ public class Router {
 	 */
 	
 	public LinkedList<FilaTabla> actualizarTabla(DatagramPacket paquete){
-		int i=4;
+		int i=24;
 		LinkedList<FilaTabla> retorno = new LinkedList<FilaTabla>();
 		InetAddress origen = paquete.getAddress();
 		if(vecinos.get(origen)==null){
@@ -208,7 +219,8 @@ public class Router {
 			i += 11;
 			int metrica = Byte.toUnsignedInt(paquete.getData()[i]);
 			i++;
-			
+			if(direccionDestino.equals(this.direccionLocal))
+				continue;
 			if(tablaEncaminamiento.get(direccionDestino)==null){
 				retorno.add(new FilaTabla(direccionDestino, metrica+1, origen, mascara));
 				tablaEncaminamiento.put(direccionDestino, new FilaTabla(direccionDestino, metrica+1, origen, mascara));
@@ -219,6 +231,7 @@ public class Router {
 					retorno.add(new FilaTabla(direccionDestino, 16, origen, mascara));
 					continue;
 				}
+				continue;
 			}
 			else if(tablaEncaminamiento.get(direccionDestino).comparar(metrica+1, origen)){
 				tablaEncaminamiento.get(direccionDestino).setNextHop(origen);
@@ -293,6 +306,7 @@ public class Router {
 	public byte[] getPaquete(InetAddress destino){
 		LinkedList<FilaTabla> lista = new LinkedList<FilaTabla>();
 		Set<InetAddress> keys = tablaEncaminamiento.keySet();
+		lista.add(new FilaTabla(this.direccionLocal, 0, this.direccionLocal, 32));
 		for(InetAddress key : keys){
 			lista.add(tablaEncaminamiento.get(key));
 		}
@@ -307,7 +321,9 @@ public class Router {
 		autentificacion[0] = (byte) 255;
 		autentificacion[1] = (byte) 255;
 		autentificacion[3] = (byte) 2;
-		//Los 16 octetos restantes son para la contraseña
+		byte[] password = this.contrasena.getBytes();
+		System.arraycopy(password, 0, autentificacion, 4, password.length);
+		
 		
 		int i = 0;
 		if(lista.size()==0)
@@ -350,9 +366,10 @@ public class Router {
 			System.arraycopy(metric, 0, entradas, i, metric.length);
 			i += 4;
 		}
-		byte[] paquete = new byte[cabecera.length+entradas.length];
+		byte[] paquete = new byte[cabecera.length+entradas.length+autentificacion.length];
 		System.arraycopy(cabecera, 0, paquete, 0, cabecera.length);
-		System.arraycopy(entradas, 0, paquete, cabecera.length, entradas.length);
+		System.arraycopy(autentificacion, 0, paquete, cabecera.length, autentificacion.length);
+		System.arraycopy(entradas, 0, paquete, cabecera.length, entradas.length+autentificacion.length);
 		return paquete;
 	}
 
