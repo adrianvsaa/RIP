@@ -134,17 +134,12 @@ public class Router {
 					tiempo = tiempo-(int)(b.getTimeInMillis()/1000-a.getTimeInMillis()/1000);
 					continue;
 				}
-				if(isActualizable(paqueteRecibido)){
+				LinkedList<FilaTabla> lista = actualizarTabla(paqueteRecibido);
+				if(lista.size()!=0){
 					ComprobarVecinos();
-					LinkedList<FilaTabla> lista = actualizarTabla(paqueteRecibido);
-					actualizarTabla(paqueteRecibido);
 					Set<InetAddress> keys =  vecinos.keySet();
 					for(InetAddress key : keys){
-						if(getPaquete(lista, key).length==4){
-							System.out.println("Enviando Trigered Update a "+key.getHostAddress());
-							continue;
-						}
-							
+						System.out.println("Envio de Trigered Update");
 						DatagramPacket paqueteEnvio = new DatagramPacket(getPaquete(lista, key), getPaquete(lista, key).length,
 								key, vecinos.get(key).getPuerto());
 						try {
@@ -196,7 +191,7 @@ public class Router {
 				
 			}
 			i +=4;
-			int[] mascara = {(int) p.getData()[i],(int) p.getData()[i+1],(int) p.getData()[i+2],(int) p.getData()[i+3]};
+			int[] mascara = { p.getData()[i], p.getData()[i+1], p.getData()[i+2], p.getData()[i+3]};
 			InetAddress or = p.getAddress();
 			i += 11;
 			int metrica = (int) p.getData()[i];
@@ -211,37 +206,6 @@ public class Router {
 	 * @param paquete
 	 * @return
 	 */
-	
-	public boolean isActualizable(DatagramPacket paquete){
-		int i = 4;
-		boolean cambios = false;
-		InetAddress origen = paquete.getAddress();
-		while(i<paquete.getData().length){
-			if(Byte.toUnsignedInt(paquete.getData()[i+1])!=2)
-				break;
-			i += 4; //Esta parte es para quitarte el Addres Family y Route Tag
-			byte[] direccion = {paquete.getData()[i], paquete.getData()[i+1],paquete.getData()[i+2], paquete.getData()[i+3]};
-			InetAddress direccionDestino = null;
-			try {
-				direccionDestino = InetAddress.getByAddress(direccion);
-			} catch (UnknownHostException e) {
-				System.err.println("Error direccion destino en actualizar paquete");
-			}
-			i += 15;
-			int metrica = Byte.toUnsignedInt(paquete.getData()[i]);
-			i++;
-			if(tablaEncaminamiento.get(direccionDestino)==null){
-				cambios = true;
-				break;
-			}
-			else if(tablaEncaminamiento.get(direccionDestino).comparar(metrica+1, origen)){
-				cambios = true;
-				break;
-			}
-		}
-		return cambios;
-	}
-	
 	
 	public LinkedList<FilaTabla> actualizarTabla(DatagramPacket paquete){
 		int i=4;
