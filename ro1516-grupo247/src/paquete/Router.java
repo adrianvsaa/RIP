@@ -33,7 +33,7 @@ public class Router {
 	
 	public Router(int puerto){
 		try {
-			NetworkInterface eth = NetworkInterface.getByName("eth0");
+			NetworkInterface eth = NetworkInterface.getByName("WiFi");
 			Enumeration<InetAddress> direcciones = eth.getInetAddresses();
 			direccionLocal = direcciones.nextElement();
 			while(direcciones.hasMoreElements()){
@@ -45,6 +45,7 @@ public class Router {
 			direccionLocal = InetAddress.getLocalHost();
 			ficheroConf = new File("ripconf-"+direccionLocal.getHostAddress()+".topo");
 		} catch (Exception e) {
+			e.printStackTrace();
 			System.err.println("Error en la captura de la direccion IP");
 			System.exit(0);
 		}
@@ -82,7 +83,7 @@ public class Router {
 						System.err.println("Error en IPs del fichero");
 						System.exit(0);
 					}
-					tablaEncaminamiento.put(destino, new FilaTabla(destino, 0, direccionLocal, Integer.parseInt(aux.trim().split("/")[1])));
+					tablaEncaminamiento.put(destino, new FilaTabla(destino, 1, direccionLocal, Integer.parseInt(aux.trim().split("/")[1])));
 				}
 				else if(aux.trim().split(":").length>1){
 					try{
@@ -127,7 +128,10 @@ public class Router {
 				socket.receive(paqueteRecibido);
 				System.out.println("Paquete recibido");
 				Calendar b = Calendar.getInstance();
-				
+				if(vecinos.get(paqueteRecibido.getAddress())==null){
+					tiempo = tiempo-(int)(b.getTimeInMillis()/1000-a.getTimeInMillis()/1000);
+					continue;
+				}
 				if(isActualizable(paqueteRecibido)){
 					System.out.println("Enviando Trigered Update");
 					ComprobarVecinos();
@@ -324,12 +328,21 @@ public class Router {
 		autentificacion[7] = (byte) 2;
 		//Los 16 octetos restantes son para la contraseña
 		
-		
-		if(tablaEncaminamiento.size()==0)
-			return cabecera;
-		byte[] entradas = new byte[tablaEncaminamiento.size()*4*5];
+		byte[] entradas = new byte[(tablaEncaminamiento.size()+1)*4*5];
 		Set<InetAddress> ips = tablaEncaminamiento.keySet();
 		int i=0;
+		byte[] cab = {(byte) 0, (byte) 2, (byte) 0, (byte) 0};
+		System.arraycopy(cab, 0, entradas, i, cab.length);
+		i += 4;
+		System.arraycopy(this.direccionLocal.getAddress(), 0, entradas, i, this.direccionLocal.getAddress().length);
+		i += 4;
+		//Falta mascara
+		byte[] mascara = {(byte) 255, (byte) 255, (byte) 255, (byte) 255};
+		System.arraycopy(mascara, 0, entradas, 0, mascara.length);
+		i += 4;
+		//Next Hop de deja a ceros
+		i += 4;
+		
 		for(InetAddress key: ips){
 			//Addres Family y route TAG
 			byte[] AFRT = {(byte) 0, (byte) 2, (byte) 0, (byte) 0};
