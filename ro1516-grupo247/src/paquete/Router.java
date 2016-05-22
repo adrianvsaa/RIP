@@ -35,7 +35,7 @@ public class Router {
 	public Router(int puerto, String ip, String Contrasena){
 		if(ip==null){
 			try {
-				NetworkInterface eth = NetworkInterface.getByName("WiFi");
+				NetworkInterface eth = NetworkInterface.getByName("eth0");
 				Enumeration<InetAddress> direcciones = eth.getInetAddresses();
 				direccionLocal = direcciones.nextElement();
 				while(direcciones.hasMoreElements()){
@@ -73,14 +73,12 @@ public class Router {
 		imprimirTabla();
 	}
 	
-	
 	public Router(InetAddress direccion, int puerto){
 		this.direccionLocal = direccion;
 		this.puerto = puerto;
 		ultimoEnvio = Calendar.getInstance();
 	}
-	
-	
+		
 	private void leerFichero(){
 		try {
 			Scanner entrada = new Scanner(ficheroConf);
@@ -225,6 +223,9 @@ public class Router {
 			i++;
 			if(direccionDestino.equals(this.direccionLocal))
 				continue;
+			if(metrica >= 15){
+				continue;
+			}
 			if(tablaEncaminamiento.get(direccionDestino)==null){
 				retorno.add(new FilaTabla(direccionDestino, metrica+1, origen, mascara));
 				tablaEncaminamiento.put(direccionDestino, new FilaTabla(direccionDestino, metrica+1, origen, mascara));
@@ -240,9 +241,30 @@ public class Router {
 			else if(tablaEncaminamiento.get(direccionDestino).comparar(metrica+1, origen)){
 				tablaEncaminamiento.get(direccionDestino).setNextHop(origen);
 				tablaEncaminamiento.get(direccionDestino).setNumeroSaltos(metrica+1);
+				tablaEncaminamiento.get(direccionDestino).actualizarRecepcion();
 				retorno.add(new FilaTabla(direccionDestino, metrica+1, origen, mascara));
 			}
 		}
+		do{
+			boolean a = true;
+			Calendar b = Calendar.getInstance();
+			Set<InetAddress> keys = tablaEncaminamiento.keySet();
+			for(InetAddress key : keys){
+				if(b.getTimeInMillis()-tablaEncaminamiento.get(key).getUltimaActualizacion().getTimeInMillis()>30000){
+					tablaEncaminamiento.get(key).setNumeroSaltos(16);
+					a = false;
+					break;
+				}
+				if(b.getTimeInMillis()-tablaEncaminamiento.get(key).getUltimaActualizacion().getTimeInMillis()>60000){
+					tablaEncaminamiento.remove(key);
+					a = false;
+					break;
+				}
+			}
+			if(!a)
+				continue;
+			break;
+		}while(true);
 		return retorno;
 	}
 	
@@ -379,10 +401,9 @@ public class Router {
 		byte[] paquete = new byte[cabecera.length+entradas.length+autentificacion.length];
 		System.arraycopy(cabecera, 0, paquete, 0, cabecera.length);
 		System.arraycopy(autentificacion, 0, paquete, cabecera.length, autentificacion.length);
-		System.arraycopy(entradas, 0, paquete, cabecera.length, entradas.length+autentificacion.length);
+		System.arraycopy(entradas, 0, paquete, cabecera.length+autentificacion.length, entradas.length);
 		return paquete;
 	}
-
 	
 	public int getPuerto(){
 		return this.puerto;

@@ -1,7 +1,7 @@
 package paquete;
 
 import java.net.InetAddress;
-import java.net.UnknownHostException;
+import java.util.Calendar;
 
 //Falta añadir mascara de subred
 
@@ -9,24 +9,24 @@ public class FilaTabla {
 	private InetAddress direccionDestino;
 	private int numeroSaltos;
 	private InetAddress nextHop;
-	public int mascaraSubRed;
+	private int mascaraSubRed;
+	private Calendar ultimaActualizacion;
+	
 	
 	public FilaTabla(InetAddress direccionDestino, int numeroSaltos, InetAddress nextHop, int mascaraSubRed){
 		this.direccionDestino = direccionDestino;
 		this.nextHop = nextHop;
 		this.numeroSaltos = numeroSaltos;
 		this.mascaraSubRed = mascaraSubRed;
+		this.ultimaActualizacion = Calendar.getInstance();
 	}
 	
-	public void actualizarInformacion(int numeroSaltos, String nextHop, int puertoEnvio){
-		if(this.numeroSaltos>numeroSaltos){
-			this.numeroSaltos = numeroSaltos;
-			try{
-			this.nextHop = InetAddress.getByName(nextHop);
-			}catch(UnknownHostException e){
-				System.err.println("Error actualizar información");
-			}
-		}
+	public void actualizarRecepcion(){
+		this.ultimaActualizacion = Calendar.getInstance();
+	}
+	
+	public Calendar getUltimaActualizacion(){
+		return this.ultimaActualizacion;
 	}
 	
 	public InetAddress getDireccionDestino(){

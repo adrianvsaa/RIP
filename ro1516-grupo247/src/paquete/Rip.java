@@ -8,8 +8,8 @@ public class Rip {
 		Scanner entrada = new Scanner(System.in);
 		String contrasena = null;
 		while(true){
-			contrasena =  entrada.nextLine();
-			if(contrasena.length()>16)
+			contrasena =  entrada.next();
+			if(contrasena.length()<=16)
 				break;
 			System.out.println("La contrasena tiene mas de 16 caracteres");
 		}
