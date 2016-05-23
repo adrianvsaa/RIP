@@ -3,7 +3,7 @@ package paquete;
 import java.net.InetAddress;
 import java.util.Calendar;
 
-//Falta añadir mascara de subred
+//Falta aï¿½adir mascara de subred
 
 public class FilaTabla {
 	private InetAddress direccionDestino;
@@ -54,7 +54,7 @@ public class FilaTabla {
 	}
 	
 	public String toString(){
-		return direccionDestino+"\t\t"+numeroSaltos+"\t"+nextHop.getHostAddress()+"\t\t"+mascaraSubRed;
+		return direccionDestino.getHostAddress()+"\t\t"+numeroSaltos+"\t"+nextHop.getHostAddress()+"\t\t"+mascaraSubRed;
 	}
 	
 	public boolean comparar(int numeroSaltos, InetAddress nextHop){

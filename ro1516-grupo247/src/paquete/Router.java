@@ -430,9 +430,15 @@ public class Router {
 
 	public void imprimirTabla(){
 		System.out.println("Direccion Destino\tSaltos\tNext Hop\t\tMascara");
+		System.out.println(this.direccionLocal.getHostAddress()+"\t\t0\t\t-\t\t32");
 		Set<InetAddress> keys = tablaEncaminamiento.keySet();
 		for(InetAddress key:keys){
-			System.out.println(tablaEncaminamiento.get(key));
+			if(tablaEncaminamiento.get(key).getNextHop().equals(this.direccionLocal)){
+				System.out.println(key.getHostAddress()+"\t\t"+tablaEncaminamiento.get(key).getNumeroSaltos()+"\t\t-\t\t"+
+						tablaEncaminamiento.get(key).getMascara());
+			}
+			else
+				System.out.println(tablaEncaminamiento.get(key));
 		}
 		System.out.println("\n\n");
 	}
