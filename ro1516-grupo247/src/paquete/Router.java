@@ -94,7 +94,7 @@ public class Router {
 					}
 					tablaEncaminamiento.put(destino, new FilaTabla(destino, 1, direccionLocal, Integer.parseInt(aux.trim().split("/")[1])));
 				}
-				else if(aux.trim().split(":").length>1){
+				else if(aux.trim().split(":").length==2){
 					try{
 						vecinos.put(InetAddress.getByName(aux.trim().split(":")[0]), new Router(InetAddress.getByName(aux.trim().split(":")[0]),
 								Integer.parseInt(aux.trim().split(":")[1])));
@@ -118,7 +118,7 @@ public class Router {
 	}
 
 	/**
-	 * Este metodo inicializa dos hilos de ejecución un que envie los datos de la tabla a los routers adyacentes y otro que recibira
+	 * Este metodo inicializa dos hilos de ejecuciï¿½n un que envie los datos de la tabla a los routers adyacentes y otro que recibira
 	 * las tablas de otros routers y los procesa
 	 */
 	
@@ -131,7 +131,7 @@ public class Router {
 		while(true){
 			try {
 				System.out.println("Tiempo de espera: "+ tiempo);
-				if(tiempo==0)
+				if(tiempo<=0)
 					tiempo = 1;
 				this.socket.setSoTimeout(1000*tiempo); //Metodo que pone un limite de espera a la escucha del socket
 				socket.receive(paqueteRecibido);
@@ -143,6 +143,7 @@ public class Router {
 					continue;
 				}
 				if(!comprobarContrasena(paqueteRecibido)){
+					System.out.println("Fallo contraseÃ±a");
 					tiempo = tiempo-(int)(b.getTimeInMillis()/1000-a.getTimeInMillis()/1000);
 					continue;
 				}
@@ -325,12 +326,18 @@ public class Router {
 	
 	public boolean comprobarContrasena(DatagramPacket paquete){
 		byte[] contrasena = new byte[this.contrasena.getBytes().length];
-		return contrasena.equals(this.contrasena.getBytes());
+		System.arraycopy(paquete.getData(), 8, contrasena, 0, this.contrasena.length());
+		String aux ="";
+		for(int i=0; i< contrasena.length; i++){
+			aux += (char) contrasena[i];
+		}
+		System.out.println(aux+" "+this.contrasena);
+		return aux.equals(this.contrasena);
 	}
 	
 	
 	/**
-	 * La función retorna el paquete a enviar con la tabla de encaminamiento
+	 * La funciï¿½n retorna el paquete a enviar con la tabla de encaminamiento
 	 * En este paquete no esta implementado la cryptografia ni se considera que el paquete pueda contener mas de 25 entradas el limite del paquete RIP
 	 * Empezando a hacer split Horizon + poison reverse
 	 */ 
