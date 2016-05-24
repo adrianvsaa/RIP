@@ -219,12 +219,7 @@ public class Router {
 		}
 		return retorno;
 	}
-	
-	/**
-	 * Metodo que comprueba si los vecinos tardan mas de 30 segundos en enviar un paquete en ese caso se borra ese vecino de la lista
-	 * y todos los destinos que van hacia ese vecino
-	 */
-	
+
 	public void ComprobarVecinos(){
 		Calendar horaActual = Calendar.getInstance();
 		Set<InetAddress> keys = vecinos.keySet();
@@ -262,7 +257,6 @@ public class Router {
 		}
 	}
 	
-	
 	public boolean comprobarContrasena(DatagramPacket paquete){
 		byte[] contrasena = new byte[this.contrasena.getBytes().length];
 		System.arraycopy(paquete.getData(), 8, contrasena, 0, this.contrasena.length());
@@ -282,7 +276,6 @@ public class Router {
 		}
 		return getPaquete(lista, destino);
 	}
-	
 	
 	public byte[] getPaquete(LinkedList<FilaTabla> lista, InetAddress destino){
 		byte[] cabecera = {(byte) 2, (byte) 2, (byte) 0, (byte) 0};
