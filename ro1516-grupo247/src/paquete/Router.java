@@ -69,7 +69,6 @@ public class Router {
 		this.puerto = puerto;
 		this.contrasena = Contrasena;
 		leerFichero();
-		imprimirVecinos();
 		imprimirTabla();
 	}
 	
@@ -117,11 +116,6 @@ public class Router {
 		}
 	}
 
-	/**
-	 * Este metodo inicializa dos hilos de ejecuci�n un que envie los datos de la tabla a los routers adyacentes y otro que recibira
-	 * las tablas de otros routers y los procesa
-	 */
-	
 	public void start(){
 		int tiempo = (int) (7 + 6*Math.random());
 		byte[] datosRecibidos = new byte[25*5*4+4];
@@ -130,20 +124,16 @@ public class Router {
 		
 		while(true){
 			try {
-				System.out.println("Tiempo de espera: "+ tiempo);
 				if(tiempo<=0)
 					tiempo = 1;
-				this.socket.setSoTimeout(1000*tiempo); //Metodo que pone un limite de espera a la escucha del socket
+				this.socket.setSoTimeout(1000*tiempo); 
 				socket.receive(paqueteRecibido);
-				System.out.println("Paquete recibido de "+paqueteRecibido.getAddress());
 				Calendar b = Calendar.getInstance();
 				if(vecinos.get(paqueteRecibido.getAddress())==null){
-					System.out.println("Entra");
 					tiempo = tiempo-(int)(b.getTimeInMillis()/1000-a.getTimeInMillis()/1000);
 					continue;
 				}
 				if(!comprobarContrasena(paqueteRecibido)){
-					System.out.println("Fallo contraseña");
 					tiempo = tiempo-(int)(b.getTimeInMillis()/1000-a.getTimeInMillis()/1000);
 					continue;
 				}
@@ -152,13 +142,13 @@ public class Router {
 					ComprobarVecinos();
 					Set<InetAddress> keys =  vecinos.keySet();
 					for(InetAddress key : keys){
-						System.out.println("Envio de Trigered Update");
 						DatagramPacket paqueteEnvio = new DatagramPacket(getPaquete(lista, key), getPaquete(lista, key).length,
 								key, vecinos.get(key).getPuerto());
 						try {
 							socket.send(paqueteEnvio);
 						} catch (IOException e1) {
 							System.err.println("Error en envio de datos");
+							System.exit(0);
 						}
 					}
 				}
@@ -166,17 +156,16 @@ public class Router {
 				tiempo = tiempo-(int)(b.getTimeInMillis()/1000-a.getTimeInMillis()/1000);
 			} catch (SocketTimeoutException e){
 				ComprobarVecinos();
-				imprimirVecinos();
 				imprimirTabla();
 				
 				Set<InetAddress> keys =  vecinos.keySet();
 				for(InetAddress key : keys){
 					DatagramPacket paqueteEnvio = new DatagramPacket(getPaquete(key), getPaquete(key).length, key, vecinos.get(key).getPuerto());
 					try {
-						System.out.println("Enviando paquete a: "+key.getHostAddress()+"\n\n");
 						socket.send(paqueteEnvio);
 					} catch (IOException e1) {
 						System.err.println("Error en envio de datos");
+						System.exit(0);
 					}
 				}	
 				tiempo = (int) (7 + 6*Math.random());
@@ -188,13 +177,6 @@ public class Router {
 			a = Calendar.getInstance();
 		}
 	}
-	
-	/**
-	 * Empezando a implementar trigered updates
-	 * Si queremos utilizar este metodo para implementar el trigered update hay que cambiar el final porque si no modifica ya la tabla
-	 * @param paquete
-	 * @return
-	 */
 	
 	public LinkedList<FilaTabla> actualizarTabla(DatagramPacket paquete){
 		int i=24;
@@ -231,7 +213,7 @@ public class Router {
 				retorno.add(new FilaTabla(direccionDestino, metrica+1, origen, mascara));
 				tablaEncaminamiento.put(direccionDestino, new FilaTabla(direccionDestino, metrica+1, origen, mascara));
 			}
-			else if(metrica >= 15 ){
+			if(metrica >= 15 ){
 				if(tablaEncaminamiento.get(direccionDestino).getNextHop().equals(origen)){
 					tablaEncaminamiento.remove(direccionDestino);
 					retorno.add(new FilaTabla(direccionDestino, 16, origen, mascara));
@@ -246,26 +228,6 @@ public class Router {
 				retorno.add(new FilaTabla(direccionDestino, metrica+1, origen, mascara));
 			}
 		}
-		do{
-			boolean a = true;
-			Calendar b = Calendar.getInstance();
-			Set<InetAddress> keys = tablaEncaminamiento.keySet();
-			for(InetAddress key : keys){
-				if(b.getTimeInMillis()-tablaEncaminamiento.get(key).getUltimaActualizacion().getTimeInMillis()>30000){
-					tablaEncaminamiento.get(key).setNumeroSaltos(16);
-					a = false;
-					break;
-				}
-				if(b.getTimeInMillis()-tablaEncaminamiento.get(key).getUltimaActualizacion().getTimeInMillis()>60000){
-					tablaEncaminamiento.remove(key);
-					a = false;
-					break;
-				}
-			}
-			if(!a)
-				continue;
-			break;
-		}while(true);
 		return retorno;
 	}
 	
@@ -321,6 +283,28 @@ public class Router {
 				aux = true;
 			}
 		}while(aux);
+		do{
+			boolean a = true;
+			Calendar b = Calendar.getInstance();
+			Set<InetAddress> keys3 = tablaEncaminamiento.keySet();
+			for(InetAddress key : keys3){
+				if(tablaEncaminamiento.get(key).getNextHop().equals(this.direccionLocal))
+					continue;
+				if(b.getTimeInMillis()-tablaEncaminamiento.get(key).getUltimaActualizacion().getTimeInMillis()>30000){
+					tablaEncaminamiento.get(key).setNumeroSaltos(16);
+					a = false;
+					break;
+				}
+				if(b.getTimeInMillis()-tablaEncaminamiento.get(key).getUltimaActualizacion().getTimeInMillis()>60000){
+					tablaEncaminamiento.remove(key);
+					a = false;
+					break;
+				}
+			}
+			if(!a)
+				continue;
+			break;
+		}while(true);
 	}
 	
 	
@@ -331,16 +315,8 @@ public class Router {
 		for(int i=0; i< contrasena.length; i++){
 			aux += (char) contrasena[i];
 		}
-		System.out.println(aux+" "+this.contrasena);
 		return aux.equals(this.contrasena);
 	}
-	
-	
-	/**
-	 * La funci�n retorna el paquete a enviar con la tabla de encaminamiento
-	 * En este paquete no esta implementado la cryptografia ni se considera que el paquete pueda contener mas de 25 entradas el limite del paquete RIP
-	 * Empezando a hacer split Horizon + poison reverse
-	 */ 
 	
 	public byte[] getPaquete(InetAddress destino){
 		LinkedList<FilaTabla> lista = new LinkedList<FilaTabla>();
@@ -362,7 +338,6 @@ public class Router {
 		autentificacion[3] = (byte) 2;
 		byte[] password = this.contrasena.getBytes();
 		System.arraycopy(password, 0, autentificacion, 4, password.length);
-		
 		
 		int i = 0;
 		if(lista.size()==0)
