@@ -350,22 +350,16 @@ public class Router {
 			System.arraycopy(dirDestino, 0, entradas, i, dirDestino.length);
 			i += 4;
 			//Mascara
+			int mas = 0xFFFFFFFF;
+			mas = mas << (32-lista.get(j).getMascara());
 			byte[] masc = new byte[4];
-			int x,d;
-			for(x=0; x<lista.get(j).getMascara()/8; x++){
-				if(x>=4)
-					break;
-				masc[x] = (byte) 255;
-			}
-			if(lista.get(j).getMascara()/8<4){
-				d = (int) (Math.pow(2, lista.get(j).getMascara()-x*8)-1);
-				masc[x] = (byte)d;
-				d = 1;
-				while(x<4){
-					masc[x] = (byte) 0;
-					x++;
-				}
-			}
+			masc[3] = (byte) mas;
+			mas = mas >> 8;
+			masc[2] = (byte) mas;
+			mas = mas >> 8;
+			masc[1] = (byte) mas;
+			mas = mas >> 8;
+			masc[0] = (byte) mas;
 			System.arraycopy(masc, 0, entradas, i, masc.length);
 			i += 4;
 
