@@ -139,7 +139,6 @@ public class Router {
 				}
 				LinkedList<FilaTabla> lista = actualizarTabla(paqueteRecibido);
 				if(lista.size()!=0){
-					ComprobarVecinos();
 					Set<InetAddress> keys =  vecinos.keySet();
 					for(InetAddress key : keys){
 						DatagramPacket paqueteEnvio = new DatagramPacket(getPaquete(lista, key), getPaquete(lista, key).length,
@@ -157,7 +156,6 @@ public class Router {
 			} catch (SocketTimeoutException e){
 				ComprobarVecinos();
 				imprimirTabla();
-				
 				Set<InetAddress> keys =  vecinos.keySet();
 				for(InetAddress key : keys){
 					DatagramPacket paqueteEnvio = new DatagramPacket(getPaquete(key), getPaquete(key).length, key, vecinos.get(key).getPuerto());
@@ -182,9 +180,6 @@ public class Router {
 		int i=24;
 		LinkedList<FilaTabla> retorno = new LinkedList<FilaTabla>();
 		InetAddress origen = paquete.getAddress();
-		if(vecinos.get(origen)==null){
-			vecinos.put(origen, new Router(origen, paquete.getPort()));
-		}
 		vecinos.get(origen).actualizarHoraEnvio();
 		while(i<paquete.getData().length){
 			if(Byte.toUnsignedInt(paquete.getData()[i+1])!=2)
@@ -213,15 +208,9 @@ public class Router {
 				retorno.add(new FilaTabla(direccionDestino, metrica+1, origen, mascara));
 				tablaEncaminamiento.put(direccionDestino, new FilaTabla(direccionDestino, metrica+1, origen, mascara));
 			}
-			if(metrica >= 15 ){
-				if(tablaEncaminamiento.get(direccionDestino).getNextHop().equals(origen)){
-					tablaEncaminamiento.remove(direccionDestino);
-					retorno.add(new FilaTabla(direccionDestino, 16, origen, mascara));
-					continue;
-				}
-				continue;
-			}
-			else if(tablaEncaminamiento.get(direccionDestino).comparar(metrica+1, origen)){
+			if(tablaEncaminamiento.get(direccionDestino)!=null)
+				tablaEncaminamiento.get(direccionDestino).actualizarRecepcion();
+			if(tablaEncaminamiento.get(direccionDestino).comparar(metrica+1, origen)){
 				tablaEncaminamiento.get(direccionDestino).setNextHop(origen);
 				tablaEncaminamiento.get(direccionDestino).setNumeroSaltos(metrica+1);
 				tablaEncaminamiento.get(direccionDestino).actualizarRecepcion();
@@ -240,71 +229,37 @@ public class Router {
 		Calendar horaActual = Calendar.getInstance();
 		Set<InetAddress> keys = vecinos.keySet();
 		Set<InetAddress> keys2 = tablaEncaminamiento.keySet();
-		boolean aux = true;
-		InetAddress borrar = null;
-		do{
-			borrar = null;
-			aux = false;
-			for(InetAddress key : keys){
-				Calendar ultimoEnvio = vecinos.get(key).getUltimoEnvio();
-				if(horaActual.getTimeInMillis()-ultimoEnvio.getTimeInMillis()>30*1000 && horaActual.getTimeInMillis()-ultimoEnvio.getTimeInMillis()<60*1000){ //En esta parte hay que poner la ruta como inalcanzable 16 saltos
-					for (InetAddress key2 : keys2){
-						if(tablaEncaminamiento.get(key2).getNextHop().equals(key)){
-							tablaEncaminamiento.get(key2).setNumeroSaltos(16);
-						}
+		LinkedList<InetAddress> borrar = new LinkedList<InetAddress>();
+		for(InetAddress key : keys){
+			Calendar ultimoEnvio = vecinos.get(key).getUltimoEnvio();
+			if(horaActual.getTimeInMillis()-ultimoEnvio.getTimeInMillis()>30*1000 && horaActual.getTimeInMillis()-ultimoEnvio.getTimeInMillis()<60*1000){ //En esta parte hay que poner la ruta como inalcanzable 16 saltos
+				for (InetAddress key2 : keys2){
+					if(tablaEncaminamiento.get(key2).getNextHop().equals(key)){
+						tablaEncaminamiento.get(key2).setNumeroSaltos(16);
 					}
 				}
-				else if(horaActual.getTimeInMillis()-ultimoEnvio.getTimeInMillis()>= 60*1000){
-					borrar = key;
-					break;
-				}
 			}
-			if(borrar==null)
-				break;
-			if(horaActual.getTimeInMillis()-vecinos.get(borrar).getUltimoEnvio().getTimeInMillis()>30*1000){
-				aux = true;
-				vecinos.remove(borrar);
+			else if(horaActual.getTimeInMillis()-ultimoEnvio.getTimeInMillis()>= 60*1000){
+				borrar.add(key);
 			}
-		}while(aux);
-		do{
-			aux = false;
-			borrar = null;
-			for(InetAddress key2 : keys2){
-				if(vecinos.get(tablaEncaminamiento.get(key2).getNextHop())==null&&
-						!tablaEncaminamiento.get(key2).getNextHop().equals(this.direccionLocal)){
-					borrar = key2;
-					break;
-				}
-			}
-			if(borrar==null)
-				break;
-			if(vecinos.get(tablaEncaminamiento.get(borrar).getNextHop())==null){
-				tablaEncaminamiento.remove(borrar);
-				aux = true;
-			}
-		}while(aux);
-		do{
-			boolean a = true;
-			Calendar b = Calendar.getInstance();
-			Set<InetAddress> keys3 = tablaEncaminamiento.keySet();
-			for(InetAddress key : keys3){
-				if(tablaEncaminamiento.get(key).getNextHop().equals(this.direccionLocal))
-					continue;
-				if(b.getTimeInMillis()-tablaEncaminamiento.get(key).getUltimaActualizacion().getTimeInMillis()>30000){
-					tablaEncaminamiento.get(key).setNumeroSaltos(16);
-					a = false;
-					break;
-				}
-				if(b.getTimeInMillis()-tablaEncaminamiento.get(key).getUltimaActualizacion().getTimeInMillis()>60000){
-					tablaEncaminamiento.remove(key);
-					a = false;
-					break;
-				}
-			}
-			if(!a)
+		}
+		for(int i=0; i<borrar.size(); i++){
+			vecinos.remove(borrar.get(i));
+		}
+		for(InetAddress key : keys2){
+			if(tablaEncaminamiento.get(key).getNextHop().equals(this.direccionLocal))
 				continue;
-			break;
-		}while(true);
+			if(horaActual.getTimeInMillis()-tablaEncaminamiento.get(key).getUltimaActualizacion().getTimeInMillis()>30000){
+				tablaEncaminamiento.get(key).setNumeroSaltos(16);
+			}
+			if(horaActual.getTimeInMillis()-tablaEncaminamiento.get(key).getUltimaActualizacion().getTimeInMillis()>60000){
+				borrar.add(key);
+			}
+		}
+		for(int i=0; i< borrar.size(); i++){
+			if(tablaEncaminamiento.remove(borrar.get(i))!=null)
+				tablaEncaminamiento.remove(borrar.get(i));
+		}
 	}
 	
 	
