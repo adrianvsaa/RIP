@@ -1,60 +1,67 @@
 package paquete;
 
 import java.net.InetAddress;
-import java.net.UnknownHostException;
+import java.util.Calendar;
 
-//Falta añadir mascara de subred
+//Falta aï¿½adir mascara de subred
 
 public class FilaTabla {
 	private InetAddress direccionDestino;
 	private int numeroSaltos;
 	private InetAddress nextHop;
-	public String mascaraSubRed;
+	private int mascaraSubRed;
+	private Calendar ultimaActualizacion;
 	
-	public FilaTabla(String direccionDestino, int numeroSaltos, String nextHop, String mascaraSubRed){
-		try {
-			this.direccionDestino = InetAddress.getByName(direccionDestino);
-			this.nextHop = InetAddress.getByName(nextHop);
-		} catch (UnknownHostException e) {
-			System.err.println("Error en Direccion destino");
-		}
+	
+	public FilaTabla(InetAddress direccionDestino, int numeroSaltos, InetAddress nextHop, int mascaraSubRed){
+		this.direccionDestino = direccionDestino;
+		this.nextHop = nextHop;
 		this.numeroSaltos = numeroSaltos;
 		this.mascaraSubRed = mascaraSubRed;
+		this.ultimaActualizacion = Calendar.getInstance();
 	}
 	
-	public void actualizarInformacion(int numeroSaltos, String nextHop, int puertoEnvio){
-		if(this.numeroSaltos>numeroSaltos){
-			this.numeroSaltos = numeroSaltos;
-			try{
-			this.nextHop = InetAddress.getByName(nextHop);
-			}catch(UnknownHostException e){
-				System.err.println("Error actualizar información");
-			}
-		}
+	public void actualizarRecepcion(){
+		this.ultimaActualizacion = Calendar.getInstance();
+	}
+	
+	public Calendar getUltimaActualizacion(){
+		return this.ultimaActualizacion;
 	}
 	
 	public InetAddress getDireccionDestino(){
 		return this.direccionDestino;
 	}
 	
+	public void setNumeroSaltos(int saltos){
+		this.numeroSaltos = saltos;
+	}
+	
 	public int getNumeroSaltos(){
 		return this.numeroSaltos;
 	}
 	
+	public void setNextHop(InetAddress nextHop){
+		this.nextHop = nextHop;
+	}
 	
 	public InetAddress getNextHop(){
 		return this.nextHop;
 	}
 	
-	public String getMascaraSubRed(){
+	public int getMascara(){
 		return this.mascaraSubRed;
 	}
 	
-	public int getMascara(){
-		return Integer.parseInt(this.mascaraSubRed);
+	public String toString(){
+		return direccionDestino.getHostAddress()+"\t\t"+numeroSaltos+"\t"+nextHop.getHostAddress()+"\t\t"+mascaraSubRed;
 	}
 	
-	public String toString(){
-		return direccionDestino+"\t\t"+numeroSaltos+"\t"+nextHop;
+	public boolean comparar(int numeroSaltos, InetAddress nextHop){
+		if(numeroSaltos<this.numeroSaltos){
+			return true;
+		}
+		return false;
 	}
+	
 }
